@@ -73,3 +73,5 @@ jobs:
             ForgeOS-V1-x64.iso
             ForgeOS-V1-x64.iso.sha256
           retention-days: 30
+
+# Forge OS V1: Debian Bookworm base with Ubuntu security inheritance disabled.
