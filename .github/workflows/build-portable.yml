@@ -1,0 +1,168 @@
+name: Build Forge OS Portable
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  build-iso:
+    name: Build Forge OS ISO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build ISO in privileged Debian container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            debian:bookworm \
+            bash -lc '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                bash live-build xorriso squashfs-tools debootstrap \
+                grub-pc-bin grub-efi-amd64-bin mtools dosfstools \
+                debian-archive-keyring ca-certificates git
+              rm -rf config chroot binary cache
+              mkdir -p \
+                config/package-lists \
+                config/includes.chroot/usr/share/applications \
+                config/includes.chroot/usr/share/backgrounds/forge \
+                config/hooks/normal
+              cp forge/package-lists/forge.list.chroot config/package-lists/forge.list.chroot
+              cp forge/forge-installer.desktop config/includes.chroot/usr/share/applications/forge-installer.desktop
+              cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
+              cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
+              chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
+              lb clean --purge || true
+              lb config \
+                --distribution bookworm \
+                --architectures amd64 \
+                --binary-images iso-hybrid \
+                --archive-areas "main contrib non-free non-free-firmware" \
+                --mirror-bootstrap http://deb.debian.org/debian \
+                --mirror-chroot http://deb.debian.org/debian \
+                --mirror-binary http://deb.debian.org/debian \
+                --bootappend-live "boot=live components username=forge hostname=forge-os" \
+                --apt-indices false \
+                --security false \
+                --memtest none
+              if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then
+                echo "Ubuntu repository detected in Forge OS configuration."
+                exit 1
+              fi
+              lb build 2>&1 | tee forge-build.log
+              test -f live-image-amd64.hybrid.iso
+              mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
+              sha256sum ForgeOS-V1-x64.iso | tee ForgeOS-V1-x64.iso.sha256
+            '
+
+      - name: Upload ISO for portable job
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgeos-iso-input
+          path: |
+            ForgeOS-V1-x64.iso
+            ForgeOS-V1-x64.iso.sha256
+          retention-days: 1
+
+  package-windows:
+    name: Package Forge OS Portable for Windows
+    needs: build-iso
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Download ISO
+        uses: actions/download-artifact@v4
+        with:
+          name: forgeos-iso-input
+          path: portable-package
+
+      - name: Install QEMU for Windows
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install qemu -y --no-progress
+          $qemu = Get-ChildItem 'C:\Program Files\qemu' -Filter 'qemu-system-x86_64.exe' -Recurse | Select-Object -First 1
+          if (-not $qemu) { throw 'qemu-system-x86_64.exe not found after installation.' }
+          New-Item -ItemType Directory -Force -Path portable-package\qemu | Out-Null
+          Copy-Item $qemu.DirectoryName\* portable-package\qemu -Recurse -Force
+          if (-not (Test-Path portable-package\qemu\qemu-system-x86_64.exe)) { throw 'QEMU packaging failed.' }
+
+      - name: Add portable launcher and disk creator
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = (Resolve-Path portable-package).Path
+          @'
+          @echo off
+          setlocal
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0ForgeOS-Portable.ps1"
+          if errorlevel 1 pause
+          endlocal
+          '@ | Set-Content -Encoding ASCII portable-package\ForgeOS-Portable.bat
+
+          @'
+          $ErrorActionPreference = 'Stop'
+          $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+          $Qemu = Join-Path $Root 'qemu\qemu-system-x86_64.exe'
+          $QemuImg = Join-Path $Root 'qemu\qemu-img.exe'
+          $Disk = Join-Path $Root 'ForgeOS-Portable.qcow2'
+          $Iso = Join-Path $Root 'ForgeOS-V1-x64.iso'
+          if (-not (Test-Path $Qemu)) { throw 'QEMU nao encontrado.' }
+          if (-not (Test-Path $Disk)) {
+            Write-Host 'Criando disco persistente de 32 GB...' -ForegroundColor Cyan
+            & $QemuImg create -f qcow2 $Disk 32G
+          }
+          $ram = if ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory -ge 8GB) { 4096 } else { 2048 }
+          $args = @('-machine','q35,accel=whpx','-cpu','host','-m',$ram,'-smp','4','-drive',"file=$Disk,if=virtio,format=qcow2",'-nic','user,model=virtio','-device','virtio-vga','-usb','-device','usb-tablet')
+          if (Test-Path $Iso) { $args += @('-cdrom',$Iso) }
+          Write-Host 'Forge OS Portable iniciando. Na primeira execucao, use o instalador para instalar no disco virtual.' -ForegroundColor Cyan
+          & $Qemu @args
+          '@ | Set-Content -Encoding UTF8 portable-package\ForgeOS-Portable.ps1
+
+          @'
+          # Forge OS Portable V1
+          #
+          # 1. Execute ForgeOS-Portable.bat no Windows.
+          # 2. Na primeira inicializacao, instale o Forge OS no disco virtual ForgeOS-Portable.qcow2.
+          # 3. Depois da instalacao, o launcher continuara usando o mesmo disco persistente.
+          #
+          # O ISO continua incluido para permitir uma reinstalacao limpa.
+          # Para boot real por SSD/HD externo, grave o ISO no disco externo com Rufus e escolha o disco no UEFI Boot Menu.
+          '@ | Set-Content -Encoding UTF8 portable-package\README-PORTABLE.txt
+
+      - name: Verify portable package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path portable-package\ForgeOS-V1-x64.iso)) { throw 'ISO missing.' }
+          if (-not (Test-Path portable-package\qemu\qemu-system-x86_64.exe)) { throw 'QEMU missing.' }
+          if (-not (Test-Path portable-package\qemu\qemu-img.exe)) { throw 'qemu-img missing.' }
+          if (-not (Test-Path portable-package\ForgeOS-Portable.ps1)) { throw 'Launcher missing.' }
+          Get-ChildItem portable-package -Recurse | Measure-Object -Property Length -Sum
+
+      - name: Compress portable package
+        shell: powershell
+        run: Compress-Archive -Path portable-package\* -DestinationPath ForgeOS-V1-Portable-Windows.zip -CompressionLevel Optimal
+
+      - name: Upload portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForgeOS-V1-Portable-Windows
+          path: ForgeOS-V1-Portable-Windows.zip
+          retention-days: 30
