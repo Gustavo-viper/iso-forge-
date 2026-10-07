@@ -11,9 +11,6 @@ permissions:
 env:
   DEBIAN_FRONTEND: noninteractive
 
-env:
-  DEBIAN_FRONTEND: noninteractive
-
 jobs:
   build:
     runs-on: ubuntu-24.04
