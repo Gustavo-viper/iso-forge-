@@ -99,15 +99,15 @@ jobs:
           choco install qemu -y --no-progress
           $qemu = Get-ChildItem 'C:\Program Files\qemu' -Filter 'qemu-system-x86_64.exe' -Recurse | Select-Object -First 1
           if (-not $qemu) { throw 'qemu-system-x86_64.exe not found after installation.' }
-          New-Item -ItemType Directory -Force -Path portable-package\qemu | Out-Null
-          Copy-Item $qemu.DirectoryName\* portable-package\qemu -Recurse -Force
-          if (-not (Test-Path portable-package\qemu\qemu-system-x86_64.exe)) { throw 'QEMU packaging failed.' }
+          New-Item -ItemType Directory -Force -Path 'portable-package\qemu' | Out-Null
+          Copy-Item -Path (Join-Path $qemu.DirectoryName '*') -Destination 'portable-package\qemu' -Recurse -Force
+          if (-not (Test-Path 'portable-package\qemu\qemu-system-x86_64.exe')) { throw 'QEMU packaging failed.' }
+          if (-not (Test-Path 'portable-package\qemu\qemu-img.exe')) { throw 'qemu-img.exe missing after QEMU installation.' }
 
       - name: Add portable launcher and disk creator
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $root = (Resolve-Path portable-package).Path
           @'
           @echo off
           setlocal
@@ -124,9 +124,11 @@ jobs:
           $Disk = Join-Path $Root 'ForgeOS-Portable.qcow2'
           $Iso = Join-Path $Root 'ForgeOS-V1-x64.iso'
           if (-not (Test-Path $Qemu)) { throw 'QEMU nao encontrado.' }
+          if (-not (Test-Path $QemuImg)) { throw 'qemu-img nao encontrado.' }
           if (-not (Test-Path $Disk)) {
             Write-Host 'Criando disco persistente de 32 GB...' -ForegroundColor Cyan
             & $QemuImg create -f qcow2 $Disk 32G
+            if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar disco virtual.' }
           }
           $ram = if ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory -ge 8GB) { 4096 } else { 2048 }
           $args = @('-machine','q35,accel=whpx','-cpu','host','-m',$ram,'-smp','4','-drive',"file=$Disk,if=virtio,format=qcow2",'-nic','user,model=virtio','-device','virtio-vga','-usb','-device','usb-tablet')
@@ -137,23 +139,20 @@ jobs:
 
           @'
           # Forge OS Portable V1
-          #
-          # 1. Execute ForgeOS-Portable.bat no Windows.
-          # 2. Na primeira inicializacao, instale o Forge OS no disco virtual ForgeOS-Portable.qcow2.
-          # 3. Depois da instalacao, o launcher continuara usando o mesmo disco persistente.
-          #
-          # O ISO continua incluido para permitir uma reinstalacao limpa.
-          # Para boot real por SSD/HD externo, grave o ISO no disco externo com Rufus e escolha o disco no UEFI Boot Menu.
+          # Execute ForgeOS-Portable.bat no Windows.
+          # Na primeira inicializacao, instale o Forge OS no disco virtual ForgeOS-Portable.qcow2.
+          # Depois da instalacao, o mesmo disco persistente sera reutilizado.
+          # O ISO permanece incluido para reinstalacao limpa.
           '@ | Set-Content -Encoding UTF8 portable-package\README-PORTABLE.txt
 
       - name: Verify portable package
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          if (-not (Test-Path portable-package\ForgeOS-V1-x64.iso)) { throw 'ISO missing.' }
-          if (-not (Test-Path portable-package\qemu\qemu-system-x86_64.exe)) { throw 'QEMU missing.' }
-          if (-not (Test-Path portable-package\qemu\qemu-img.exe)) { throw 'qemu-img missing.' }
-          if (-not (Test-Path portable-package\ForgeOS-Portable.ps1)) { throw 'Launcher missing.' }
+          if (-not (Test-Path 'portable-package\ForgeOS-V1-x64.iso')) { throw 'ISO missing.' }
+          if (-not (Test-Path 'portable-package\qemu\qemu-system-x86_64.exe')) { throw 'QEMU missing.' }
+          if (-not (Test-Path 'portable-package\qemu\qemu-img.exe')) { throw 'qemu-img missing.' }
+          if (-not (Test-Path 'portable-package\ForgeOS-Portable.ps1')) { throw 'Launcher missing.' }
           Get-ChildItem portable-package -Recurse | Measure-Object -Property Length -Sum
 
       - name: Compress portable package
