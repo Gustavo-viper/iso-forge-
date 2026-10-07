@@ -15,63 +15,73 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    container:
-      image: debian:bookworm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install ISO build tools
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            bash live-build xorriso squashfs-tools debootstrap \
-            grub-pc-bin grub-efi-amd64-bin mtools dosfstools \
-            debian-archive-keyring ca-certificates git
-
-      - name: Configure Forge OS
-        run: |
-          mkdir -p config/package-lists config/includes.chroot/usr/share/applications config/includes.chroot/usr/share/backgrounds/forge config/hooks/normal
-          cp forge/package-lists/forge.list.chroot config/package-lists/forge.list.chroot
-          cp forge/forge-installer.desktop config/includes.chroot/usr/share/applications/forge-installer.desktop
-          cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
-          cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
-          chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
-          lb clean --purge || true
-          lb config \
-            --distribution bookworm \
-            --architectures amd64 \
-            --binary-images iso-hybrid \
-            --archive-areas "main contrib non-free non-free-firmware" \
-            --mirror-bootstrap http://deb.debian.org/debian \
-            --mirror-chroot http://deb.debian.org/debian \
-            --mirror-binary http://deb.debian.org/debian \
-            --bootappend-live "boot=live components username=forge hostname=forge-os" \
-            --apt-indices false \
-            --security false \
-            --memtest none
-
-      - name: Verify repository configuration
-        run: |
-          if grep -RqsE 'ubuntu\.com/ubuntu|archive\.ubuntu\.com|security\.ubuntu\.com' config; then
-            echo "Ubuntu repository detected in Forge OS configuration."
-            grep -RInE 'ubuntu\.com/ubuntu|archive\.ubuntu\.com|security\.ubuntu\.com' config || true
-            exit 1
-          fi
-          echo "Native Debian live-build configuration confirmed."
-          grep -RInE 'deb\.debian\.org/debian' config/bootstrap config/binary || true
-
-      - name: Build ISO
+      - name: Build Forge OS inside privileged Debian container
         shell: bash
         run: |
-          set -o pipefail
-          lb build 2>&1 | tee forge-build.log
-          test -f live-image-amd64.hybrid.iso
-          mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            debian:bookworm \
+            bash -lc '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
 
-      - name: ISO checksum
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                bash live-build xorriso squashfs-tools debootstrap \
+                grub-pc-bin grub-efi-amd64-bin mtools dosfstools \
+                debian-archive-keyring ca-certificates git
+
+              rm -rf config chroot binary cache
+              mkdir -p \
+                config/package-lists \
+                config/includes.chroot/usr/share/applications \
+                config/includes.chroot/usr/share/backgrounds/forge \
+                config/hooks/normal
+
+              cp forge/package-lists/forge.list.chroot config/package-lists/forge.list.chroot
+              cp forge/forge-installer.desktop config/includes.chroot/usr/share/applications/forge-installer.desktop
+              cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
+              cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
+              chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
+
+              lb clean --purge || true
+              lb config \
+                --distribution bookworm \
+                --architectures amd64 \
+                --binary-images iso-hybrid \
+                --archive-areas "main contrib non-free non-free-firmware" \
+                --mirror-bootstrap http://deb.debian.org/debian \
+                --mirror-chroot http://deb.debian.org/debian \
+                --mirror-binary http://deb.debian.org/debian \
+                --bootappend-live "boot=live components username=forge hostname=forge-os" \
+                --apt-indices false \
+                --security false \
+                --memtest none
+
+              if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then
+                echo "Ubuntu repository detected in Forge OS configuration."
+                exit 1
+              fi
+
+              echo "Starting native Debian Forge OS build..."
+              lb build 2>&1 | tee forge-build.log
+              test -f live-image-amd64.hybrid.iso
+              mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
+              sha256sum ForgeOS-V1-x64.iso | tee ForgeOS-V1-x64.iso.sha256
+            '
+
+      - name: Verify ISO output
         shell: bash
-        run: sha256sum ForgeOS-V1-x64.iso | tee ForgeOS-V1-x64.iso.sha256
+        run: |
+          test -s ForgeOS-V1-x64.iso
+          test -s ForgeOS-V1-x64.iso.sha256
+          ls -lh ForgeOS-V1-x64.iso ForgeOS-V1-x64.iso.sha256
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
@@ -82,4 +92,4 @@ jobs:
             ForgeOS-V1-x64.iso.sha256
           retention-days: 30
 
-# Forge OS V1: native Debian Bookworm build environment to avoid Ubuntu live-build defaults.
+# Forge OS V1: Debian live-build runs in a privileged native Debian container so chroot mounts are permitted.
