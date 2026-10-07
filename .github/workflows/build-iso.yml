@@ -15,14 +15,19 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    container:
+      image: debian:bookworm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install ISO build tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y live-build xorriso squashfs-tools debootstrap grub-pc-bin grub-efi-amd64-bin mtools dosfstools debian-archive-keyring
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            live-build xorriso squashfs-tools debootstrap \
+            grub-pc-bin grub-efi-amd64-bin mtools dosfstools \
+            debian-archive-keyring ca-certificates git
 
       - name: Configure Forge OS
         run: |
@@ -32,7 +37,7 @@ jobs:
           cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
           cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
           chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
-          sudo lb clean --purge || true
+          lb clean --purge || true
           lb config \
             --distribution bookworm \
             --architectures amd64 \
@@ -45,31 +50,21 @@ jobs:
             --apt-indices false \
             --security false \
             --memtest none
-          # Ubuntu's live-build package injects Ubuntu mirror defaults into the generated config.
-          # Normalize every generated config file, including security/volatile variables and comments.
-          find config -type f -print0 | while IFS= read -r -d '' file; do
-            sudo sed -i \
-              -e 's#http://security\\.ubuntu\\.com/ubuntu/#http://deb.debian.org/debian/#g' \
-              -e 's#http://archive\\.ubuntu\\.com/ubuntu/#http://deb.debian.org/debian/#g' \
-              -e 's#https://security\\.ubuntu\\.com/ubuntu/#http://deb.debian.org/debian/#g' \
-              -e 's#https://archive\\.ubuntu\\.com/ubuntu/#http://deb.debian.org/debian/#g' \
-              "$file"
-          done
 
       - name: Verify repository configuration
         run: |
-          if grep -RqsE 'security\\.ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com/ubuntu' config; then
-            echo "Ubuntu repository detected after mirror normalization."
-            grep -RInE 'security\\.ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com/ubuntu' config || true
+          if grep -RqsE 'ubuntu\.com/ubuntu|archive\.ubuntu\.com|security\.ubuntu\.com' config; then
+            echo "Ubuntu repository detected in Forge OS configuration."
+            grep -RInE 'ubuntu\.com/ubuntu|archive\.ubuntu\.com|security\.ubuntu\.com' config || true
             exit 1
           fi
-          echo "Repository configuration normalized to Debian."
-          grep -RInE 'deb\\.debian\\.org/debian' config/bootstrap config/binary || true
+          echo "Native Debian live-build configuration confirmed."
+          grep -RInE 'deb\.debian\.org/debian' config/bootstrap config/binary || true
 
       - name: Build ISO
         run: |
           set -o pipefail
-          sudo lb build 2>&1 | tee forge-build.log
+          lb build 2>&1 | tee forge-build.log
           test -f live-image-amd64.hybrid.iso
           mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
 
@@ -85,4 +80,4 @@ jobs:
             ForgeOS-V1-x64.iso.sha256
           retention-days: 30
 
-# Forge OS V1: Debian Bookworm base with all inherited Ubuntu mirror defaults normalized.
+# Forge OS V1: native Debian Bookworm build environment to avoid Ubuntu live-build defaults.
