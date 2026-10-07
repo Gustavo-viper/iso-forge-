@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Instalar Forge OS
+Comment=Instalar o Forge OS neste computador
+Exec=pkexec calamares
+Icon=system-software-install
+Terminal=false
+Type=Application
+Categories=System;

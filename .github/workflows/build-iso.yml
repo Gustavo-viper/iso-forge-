@@ -1,0 +1,60 @@
+name: Build Forge OS ISO
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ISO build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y live-build xorriso squashfs-tools debootstrap grub-pc-bin grub-efi-amd64-bin mtools dosfstools
+
+      - name: Configure Forge OS
+        run: |
+          mkdir -p config/package-lists config/includes.chroot/usr/share/applications config/includes.chroot/usr/share/backgrounds/forge config/hooks/normal
+          cp forge/package-lists/forge.list.chroot config/package-lists/forge.list.chroot
+          cp forge/forge-installer.desktop config/includes.chroot/usr/share/applications/forge-installer.desktop
+          cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
+          cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
+          chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
+          lb config \
+            --distribution bookworm \
+            --architectures amd64 \
+            --binary-images iso-hybrid \
+            --archive-areas "main contrib non-free non-free-firmware" \
+            --bootappend-live "boot=live components username=forge hostname=forge-os" \
+            --apt-indices false \
+            --memtest none
+
+      - name: Build ISO
+        run: |
+          sudo lb build 2>&1 | tee forge-build.log
+          test -f live-image-amd64.hybrid.iso
+          mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
+
+      - name: ISO checksum
+        run: sha256sum ForgeOS-V1-x64.iso | tee ForgeOS-V1-x64.iso.sha256
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForgeOS-V1-x64
+          path: |
+            ForgeOS-V1-x64.iso
+            ForgeOS-V1-x64.iso.sha256
+          retention-days: 30

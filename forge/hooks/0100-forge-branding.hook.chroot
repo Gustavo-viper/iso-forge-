@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+# Forge OS branding and lightweight defaults.
+mkdir -p /etc/skel/Desktop /usr/share/backgrounds/forge
+cp /usr/share/backgrounds/forge/forge-wallpaper.svg /etc/skel/forge-wallpaper.svg || true
+
+# Make the installer visible on the live desktop.
+if [ -d /etc/skel/Desktop ]; then
+  cp /usr/share/applications/forge-installer.desktop /etc/skel/Desktop/Forge-OS-Installer.desktop
+  chmod +x /etc/skel/Desktop/Forge-OS-Installer.desktop
+fi
+
+# Prefer NetworkManager for desktop networking.
+systemctl enable NetworkManager.service 2>/dev/null || true
