@@ -25,7 +25,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            live-build xorriso squashfs-tools debootstrap \
+            bash live-build xorriso squashfs-tools debootstrap \
             grub-pc-bin grub-efi-amd64-bin mtools dosfstools \
             debian-archive-keyring ca-certificates git
 
@@ -62,6 +62,7 @@ jobs:
           grep -RInE 'deb\.debian\.org/debian' config/bootstrap config/binary || true
 
       - name: Build ISO
+        shell: bash
         run: |
           set -o pipefail
           lb build 2>&1 | tee forge-build.log
@@ -69,6 +70,7 @@ jobs:
           mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
 
       - name: ISO checksum
+        shell: bash
         run: sha256sum ForgeOS-V1-x64.iso | tee ForgeOS-V1-x64.iso.sha256
 
       - name: Upload ISO artifact
