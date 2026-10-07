@@ -43,10 +43,21 @@ jobs:
             --mirror-binary http://deb.debian.org/debian \
             --bootappend-live "boot=live components username=forge hostname=forge-os" \
             --apt-indices false \
+            --security false \
             --memtest none
+
+      - name: Verify repository configuration
+        run: |
+          if grep -RqsE 'security\.ubuntu\.com/ubuntu|archive\.ubuntu\.com/ubuntu' config; then
+            echo "Ubuntu repository detected in Forge OS live-build configuration."
+            grep -RInE 'security\.ubuntu\.com/ubuntu|archive\.ubuntu\.com/ubuntu' config || true
+            exit 1
+          fi
+          echo "Repository configuration is Debian-only."
 
       - name: Build ISO
         run: |
+          set -o pipefail
           sudo lb build 2>&1 | tee forge-build.log
           test -f live-image-amd64.hybrid.iso
           mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
