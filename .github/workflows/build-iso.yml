@@ -22,7 +22,7 @@ jobs:
       - name: Install ISO build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y live-build xorriso squashfs-tools debootstrap grub-pc-bin grub-efi-amd64-bin mtools dosfstools
+          sudo apt-get install -y live-build xorriso squashfs-tools debootstrap grub-pc-bin grub-efi-amd64-bin mtools dosfstools debian-archive-keyring
 
       - name: Configure Forge OS
         run: |
@@ -32,11 +32,18 @@ jobs:
           cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
           cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
           chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
+          sudo lb clean --purge || true
           lb config \
             --distribution bookworm \
             --architectures amd64 \
             --binary-images iso-hybrid \
             --archive-areas "main contrib non-free non-free-firmware" \
+            --mirror-bootstrap http://deb.debian.org/debian \
+            --mirror-chroot http://deb.debian.org/debian \
+            --mirror-binary http://deb.debian.org/debian \
+            --mirror-bootstrap-security http://security.debian.org/debian-security \
+            --mirror-chroot-security http://security.debian.org/debian-security \
+            --mirror-binary-security http://security.debian.org/debian-security \
             --bootappend-live "boot=live components username=forge hostname=forge-os" \
             --apt-indices false \
             --memtest none
