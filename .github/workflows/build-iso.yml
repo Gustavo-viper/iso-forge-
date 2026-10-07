@@ -45,22 +45,26 @@ jobs:
             --apt-indices false \
             --security false \
             --memtest none
-          # Ubuntu's live-build package ships Ubuntu mirror defaults in /etc/live/build.conf.
-          # Replace every inherited mirror with the matching Debian repository.
-          sudo sed -i \
-            -e 's#http://security\.ubuntu\.com/ubuntu/#http://security.debian.org/debian-security/#g' \
-            -e 's#http://archive\.ubuntu\.com/ubuntu/#http://deb.debian.org/debian/#g' \
-            config/bootstrap config/binary 2>/dev/null || true
+          # Ubuntu's live-build package injects Ubuntu mirror defaults into the generated config.
+          # Normalize every generated config file, including security/volatile variables and comments.
+          find config -type f -print0 | while IFS= read -r -d '' file; do
+            sudo sed -i \
+              -e 's#http://security\\.ubuntu\\.com/ubuntu/#http://deb.debian.org/debian/#g' \
+              -e 's#http://archive\\.ubuntu\\.com/ubuntu/#http://deb.debian.org/debian/#g' \
+              -e 's#https://security\\.ubuntu\\.com/ubuntu/#http://deb.debian.org/debian/#g' \
+              -e 's#https://archive\\.ubuntu\\.com/ubuntu/#http://deb.debian.org/debian/#g' \
+              "$file"
+          done
 
       - name: Verify repository configuration
         run: |
-          if grep -RqsE 'security\.ubuntu\.com/ubuntu|archive\.ubuntu\.com/ubuntu' config; then
-            echo "Ubuntu repository detected in Forge OS live-build configuration."
-            grep -RInE 'security\.ubuntu\.com/ubuntu|archive\.ubuntu\.com/ubuntu' config || true
+          if grep -RqsE 'security\\.ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com/ubuntu' config; then
+            echo "Ubuntu repository detected after mirror normalization."
+            grep -RInE 'security\\.ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com/ubuntu' config || true
             exit 1
           fi
-          echo "Repository configuration is Debian-only."
-          grep -RInE 'security\.debian\.org/debian-security|deb\.debian\.org/debian' config/bootstrap config/binary || true
+          echo "Repository configuration normalized to Debian."
+          grep -RInE 'deb\\.debian\\.org/debian' config/bootstrap config/binary || true
 
       - name: Build ISO
         run: |
@@ -81,4 +85,4 @@ jobs:
             ForgeOS-V1-x64.iso.sha256
           retention-days: 30
 
-# Forge OS V1: Debian Bookworm base with all inherited Ubuntu mirror defaults overridden.
+# Forge OS V1: Debian Bookworm base with all inherited Ubuntu mirror defaults normalized.
