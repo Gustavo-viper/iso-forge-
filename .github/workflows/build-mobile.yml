@@ -1,0 +1,204 @@
+name: Build Forge OS Mobile ARM64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  build-mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build ARM64 Forge OS image inside privileged Debian container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            debian:bookworm \
+            bash -lc '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                bash live-build xorriso squashfs-tools debootstrap \
+                grub-efi-arm64-bin grub-efi-amd64-bin mtools dosfstools \
+                debian-archive-keyring ca-certificates git
+
+              rm -rf mobile-config mobile-chroot mobile-binary mobile-cache
+              mkdir -p \
+                mobile-config/package-lists \
+                mobile-config/includes.chroot/etc/lightdm/lightdm.conf.d \
+                mobile-config/includes.chroot/etc/X11/xorg.conf.d \
+                mobile-config/includes.chroot/usr/share/applications \
+                mobile-config/includes.chroot/usr/share/backgrounds/forge \
+                mobile-config/includes.chroot/etc/skel/Desktop \
+                mobile-config/hooks/normal
+
+              cat > mobile-config/package-lists/forge-mobile.list.chroot <<"EOF"
+linux-image-arm64
+live-boot
+live-config
+systemd-sysv
+lightdm
+xfce4
+xfce4-terminal
+thunar
+network-manager
+network-manager-gnome
+firefox-esr
+pipewire
+pipewire-audio
+wireplumber
+pavucontrol
+blueman
+firmware-linux
+firmware-iwlwifi
+firmware-realtek
+firmware-misc-nonfree
+sudo
+curl
+wget
+htop
+xdg-utils
+udisks2
+ntfs-3g
+exfatprogs
+xserver-xorg
+xserver-xorg-video-fbdev
+xserver-xorg-video-all
+dbus-x11
+EOF
+
+              cp forge/forge-installer.desktop mobile-config/includes.chroot/usr/share/applications/forge-installer.desktop
+              cp forge/forge-wallpaper.svg mobile-config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
+
+              cat > mobile-config/includes.chroot/etc/lightdm/lightdm.conf.d/50-forge-mobile.conf <<"EOF"
+[Seat:*]
+autologin-user=forge
+autologin-user-timeout=0
+user-session=xfce
+session-setup-script=/usr/local/bin/forge-mobile-session
+EOF
+
+              cat > mobile-config/includes.chroot/etc/X11/xorg.conf.d/20-forge-mobile.conf <<"EOF"
+Section "Device"
+    Identifier "Forge Mobile Display"
+    Driver "fbdev"
+    Option "fbdev" "/dev/fb0"
+EndSection
+
+Section "Screen"
+    Identifier "Forge Mobile Screen"
+    Device "Forge Mobile Display"
+    DefaultDepth 24
+EndSection
+EOF
+
+              cat > mobile-config/hooks/normal/0100-forge-mobile.hook.chroot <<"EOF"
+#!/bin/sh
+set -e
+
+useradd -m -s /bin/bash forge 2>/dev/null || true
+usermod -aG sudo,audio,video,netdev forge 2>/dev/null || true
+printf "forge:forge\n" | chpasswd
+
+cat > /usr/local/bin/forge-mobile-session <<'SCRIPT'
+#!/bin/sh
+mkdir -p /home/forge/Desktop
+cp /usr/share/backgrounds/forge/forge-wallpaper.svg /home/forge/forge-wallpaper.svg 2>/dev/null || true
+chown -R forge:forge /home/forge 2>/dev/null || true
+SCRIPT
+chmod +x /usr/local/bin/forge-mobile-session
+
+mkdir -p /etc/skel/Desktop
+cp /usr/share/applications/forge-installer.desktop /etc/skel/Desktop/Forge-OS-Installer.desktop 2>/dev/null || true
+chmod +x /etc/skel/Desktop/Forge-OS-Installer.desktop 2>/dev/null || true
+
+systemctl enable NetworkManager.service 2>/dev/null || true
+systemctl enable lightdm.service 2>/dev/null || true
+EOF
+              chmod +x mobile-config/hooks/normal/0100-forge-mobile.hook.chroot
+
+              cd mobile-config
+              lb clean --purge || true
+              lb config \
+                --distribution bookworm \
+                --architectures arm64 \
+                --binary-images iso-hybrid \
+                --archive-areas "main contrib non-free non-free-firmware" \
+                --mirror-bootstrap http://deb.debian.org/debian \
+                --mirror-chroot http://deb.debian.org/debian \
+                --mirror-binary http://deb.debian.org/debian \
+                --bootappend-live "boot=live components username=forge hostname=forge-mobile" \
+                --apt-indices false \
+                --security false \
+                --memtest none
+
+              if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then
+                echo "Ubuntu repository detected in Forge Mobile configuration."
+                exit 1
+              fi
+
+              echo "Starting Forge OS Mobile ARM64 build..."
+              lb build 2>&1 | tee forge-mobile-build.log
+              test -f live-image-arm64.hybrid.iso
+              mv live-image-arm64.hybrid.iso ../ForgeOS-Mobile-ARM64.iso
+              sha256sum ../ForgeOS-Mobile-ARM64.iso | tee ../ForgeOS-Mobile-ARM64.iso.sha256
+            '
+
+      - name: Verify mobile ISO
+        shell: bash
+        run: |
+          test -s ForgeOS-Mobile-ARM64.iso
+          test -s ForgeOS-Mobile-ARM64.iso.sha256
+          ls -lh ForgeOS-Mobile-ARM64.iso ForgeOS-Mobile-ARM64.iso.sha256
+
+      - name: Upload Forge Mobile ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForgeOS-Mobile-ARM64-iPhone-UTM
+          path: |
+            ForgeOS-Mobile-ARM64.iso
+            ForgeOS-Mobile-ARM64.iso.sha256
+          retention-days: 30
+
+      - name: Create mobile setup guide
+        shell: bash
+        run: |
+          cat > ForgeOS-Mobile-iPhone-UTM.txt <<'EOF'
+Forge OS Mobile - iPhone / UTM SE
+
+1. Download ForgeOS-Mobile-ARM64.iso from this workflow artifact.
+2. In UTM SE choose Create a New Virtual Machine > Other.
+3. Architecture: ARM64 virtual machine.
+4. Memory: start with 2 GB.
+5. CPU: 2 cores if available.
+6. Boot Device: CD/DVD Image.
+7. Select ForgeOS-Mobile-ARM64.iso.
+8. Storage: 16 GB.
+9. UEFI Boot: ON.
+10. Save and press Play.
+
+This edition is ARM64 and is intended for emulation on iPhone/iPad with UTM SE.
+UTM SE does not provide JIT on standard App Store installs, so performance is expected to be limited.
+EOF
+
+      - name: Upload mobile setup guide
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForgeOS-Mobile-iPhone-Guide
+          path: ForgeOS-Mobile-iPhone-UTM.txt
+          retention-days: 30
