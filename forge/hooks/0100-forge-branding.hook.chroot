@@ -14,27 +14,34 @@ fi
 # Prefer NetworkManager for desktop networking.
 systemctl enable NetworkManager.service 2>/dev/null || true
 
-# Ensure the graphical session is available in Live mode and after installation.
-# Explicitly enable LightDM because task-xfce-desktop can otherwise leave the
-# display manager selection dependent on package-install order.
+# Ensure the graphical session starts reliably in Live mode and after installation.
+# Live-config creates the "forge" user from the boot parameter, so LightDM can
+# autologin directly into XFCE without depending on a greeter rendering first.
 mkdir -p /etc/lightdm/lightdm.conf.d
 cat > /etc/lightdm/lightdm.conf.d/50-forge.conf <<'EOF'
 [Seat:*]
 greeter-session=lightdm-gtk-greeter
+greeter-hide-users=false
 user-session=xfce
+autologin-user=forge
+autologin-user-timeout=0
+autologin-session=xfce
 EOF
 
+# Provide an explicit XFCE fallback session for display managers that consult
+# the user's .xsession file.
+cat > /etc/skel/.xsession <<'EOF'
+#!/bin/sh
+exec startxfce4
+EOF
+chmod +x /etc/skel/.xsession
+
+# Explicitly register LightDM as the display manager and use the graphical target.
 systemctl enable lightdm.service 2>/dev/null || true
+ln -sf /lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service 2>/dev/null || true
 systemctl set-default graphical.target 2>/dev/null || true
 
-# Make Xorg use the generic modesetting driver when running under QEMU/virtio.
-# This avoids a blank graphical session on virtual GPUs while preserving native
-# GPU detection on physical hardware.
-mkdir -p /etc/X11/xorg.conf.d
-cat > /etc/X11/xorg.conf.d/20-forge-modesetting.conf <<'EOF'
-Section "Device"
-    Identifier "Forge Virtual/Generic GPU"
-    Driver "modesetting"
-    Option "AccelMethod" "glamor"
-EndSection
-EOF
+# Do not force a specific Xorg GPU driver. QEMU's standard VGA and real PCs can
+# expose different DRM/framebuffer devices; letting Xorg auto-detect avoids a
+# black screen caused by an incompatible hard-coded modesetting device.
+rm -f /etc/X11/xorg.conf.d/20-forge-modesetting.conf 2>/dev/null || true
