@@ -23,114 +23,52 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --privileged \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -w /workspace \
-            debian:bookworm \
-            bash -lc '
-              set -euo pipefail
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update
-              apt-get install -y --no-install-recommends \
-                bash live-build xorriso squashfs-tools debootstrap \
-                grub-pc-bin grub-efi-amd64-bin mtools dosfstools \
-                debian-archive-keyring ca-certificates git
-
-              rm -rf config chroot binary cache
-              mkdir -p \
-                config/package-lists \
-                config/includes.chroot/usr/share/applications \
-                config/includes.chroot/usr/share/backgrounds/forge \
-                config/hooks/normal
-
-              cp forge/package-lists/forge.list.chroot config/package-lists/forge.list.chroot
-              cp forge/forge-installer.desktop config/includes.chroot/usr/share/applications/forge-installer.desktop
-              cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
-              cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
-              chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
-
-              lb clean --purge || true
-              lb config \
-                --distribution bookworm \
-                --architectures amd64 \
-                --binary-images iso-hybrid \
-                --archive-areas "main contrib non-free non-free-firmware" \
-                --mirror-bootstrap http://deb.debian.org/debian \
-                --mirror-chroot http://deb.debian.org/debian \
-                --mirror-binary http://deb.debian.org/debian \
-                --bootappend-live "boot=live components username=forge hostname=forge-os" \
-                --apt-indices false \
-                --security false \
-                --memtest none
-
-              if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then
-                echo "Ubuntu repository detected in Forge OS x64 configuration."
-                exit 1
-              fi
-
-              echo "Starting Debian Forge OS x64 build..."
-              lb build 2>&1 | tee forge-build-x64.log
-              test -f live-image-amd64.hybrid.iso
-              mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
-              sha256sum ForgeOS-V1-x64.iso | tee ForgeOS-V1-x64.iso.sha256
-            '
+          docker run --rm --privileged -v "$GITHUB_WORKSPACE:/workspace" -w /workspace debian:bookworm bash -lc '
+            set -euo pipefail
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends bash live-build xorriso squashfs-tools debootstrap grub-pc-bin grub-efi-amd64-bin mtools dosfstools debian-archive-keyring ca-certificates git
+            rm -rf config chroot binary cache
+            mkdir -p config/package-lists config/includes.chroot/usr/share/applications config/includes.chroot/usr/share/backgrounds/forge config/hooks/normal
+            cp forge/package-lists/forge.list.chroot config/package-lists/forge.list.chroot
+            cp forge/forge-installer.desktop config/includes.chroot/usr/share/applications/forge-installer.desktop
+            cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
+            cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
+            chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
+            lb clean --purge || true
+            lb config --distribution bookworm --architectures amd64 --binary-images iso-hybrid --archive-areas "main contrib non-free non-free-firmware" --mirror-bootstrap http://deb.debian.org/debian --mirror-chroot http://deb.debian.org/debian --mirror-binary http://deb.debian.org/debian --bootappend-live "boot=live components username=forge hostname=forge-os" --apt-indices false --security false --memtest none
+            if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then exit 1; fi
+            lb build 2>&1 | tee forge-build-x64.log
+            test -f live-image-amd64.hybrid.iso
+            mv live-image-amd64.hybrid.iso ForgeOS-V1-x64.iso
+            sha256sum ForgeOS-V1-x64.iso | tee ForgeOS-V1-x64.iso.sha256
+          '
 
       - name: Build Forge OS ARM64 Mobile in native ARM64 container
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --privileged --platform linux/arm64/v8 \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -w /workspace \
-            debian:bookworm \
-            bash -lc '
-              set -euo pipefail
-              export DEBIAN_FRONTEND=noninteractive
-
-              echo "Preparing native ARM64 Debian build environment..."
-              apt-get update
-              apt-get install -y --no-install-recommends \
-                bash live-build xorriso squashfs-tools debootstrap \
-                grub-efi-arm64-bin grub-efi-arm64-signed \
-                mtools dosfstools \
-                debian-archive-keyring ca-certificates git
-
-              rm -rf config chroot binary cache
-              mkdir -p \
-                config/package-lists \
-                config/includes.chroot/usr/share/backgrounds/forge \
-                config/hooks/normal
-
-              cp forge/package-lists/forge-mobile.list.chroot config/package-lists/forge.list.chroot
-              cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
-              cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
-              chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
-
-              lb clean --purge || true
-              lb config \
-                --distribution bookworm \
-                --architectures arm64 \
-                --binary-images iso-hybrid \
-                --archive-areas "main contrib non-free non-free-firmware" \
-                --mirror-bootstrap http://deb.debian.org/debian \
-                --mirror-chroot http://deb.debian.org/debian \
-                --mirror-binary http://deb.debian.org/debian \
-                --bootappend-live "boot=live components username=forge hostname=forge-os-mobile" \
-                --apt-indices false \
-                --security false \
-                --memtest none
-
-              if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then
-                echo "Ubuntu repository detected in Forge OS ARM64 configuration."
-                exit 1
-              fi
-
-              echo "Starting Debian Forge OS ARM64 Mobile build..."
-              lb build 2>&1 | tee forge-build-arm64.log
-              test -f live-image-arm64.hybrid.iso
-              mv live-image-arm64.hybrid.iso ForgeOS-Mobile-ARM64.iso
-              sha256sum ForgeOS-Mobile-ARM64.iso | tee ForgeOS-Mobile-ARM64.iso.sha256
-            '
+          docker run --rm --privileged --platform linux/arm64/v8 -v "$GITHUB_WORKSPACE:/workspace" -w /workspace debian:bookworm bash -lc '
+            set -euo pipefail
+            export DEBIAN_FRONTEND=noninteractive
+            echo "Preparing native ARM64 Debian build environment..."
+            apt-get update
+            apt-get install -y --no-install-recommends bash live-build xorriso squashfs-tools debootstrap grub-efi-arm64-bin mtools dosfstools debian-archive-keyring ca-certificates git
+            rm -rf config chroot binary cache
+            mkdir -p config/package-lists config/includes.chroot/usr/share/backgrounds/forge config/hooks/normal
+            cp forge/package-lists/forge-mobile.list.chroot config/package-lists/forge.list.chroot
+            cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
+            cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
+            chmod +x config/hooks/normal/0100-forge-branding.hook.chroot
+            lb clean --purge || true
+            lb config --distribution bookworm --architectures arm64 --binary-images iso --archive-areas "main contrib non-free non-free-firmware" --mirror-bootstrap http://deb.debian.org/debian --mirror-chroot http://deb.debian.org/debian --mirror-binary http://deb.debian.org/debian --bootappend-live "boot=live components username=forge hostname=forge-os-mobile" --apt-indices false --security false --memtest none
+            if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then exit 1; fi
+            echo "Starting Debian Forge OS ARM64 Mobile build..."
+            lb build 2>&1 | tee forge-build-arm64.log
+            test -f live-image-arm64.iso
+            mv live-image-arm64.iso ForgeOS-Mobile-ARM64.iso
+            sha256sum ForgeOS-Mobile-ARM64.iso | tee ForgeOS-Mobile-ARM64.iso.sha256
+          '
 
       - name: Verify ISO outputs
         shell: bash
@@ -152,5 +90,5 @@ jobs:
             ForgeOS-Mobile-ARM64.iso.sha256
           retention-days: 30
 
-# x64 remains a native amd64 Debian build. ARM64 is built inside an ARM64
-# Debian container to avoid cross-architecture live-build/GRUB failures.
+# x64 remains a native amd64 Debian build. ARM64 uses a plain ISO image because
+# iso-hybrid is not required for UEFI ARM64 guests such as UTM.
