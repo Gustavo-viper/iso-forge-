@@ -31,10 +31,13 @@ jobs:
               set -euo pipefail
               export DEBIAN_FRONTEND=noninteractive
 
+              # Enable the ARM64 package architecture so the ARM64 GRUB binaries
+              # can be installed on the amd64 GitHub runner.
+              dpkg --add-architecture arm64
               apt-get update
               apt-get install -y --no-install-recommends \
                 bash live-build xorriso squashfs-tools debootstrap \
-                grub-pc-bin grub-efi-amd64-bin grub-efi-arm64-bin \
+                grub-pc-bin grub-efi-amd64-bin grub-efi-arm64-bin:arm64 \
                 qemu-user-static binfmt-support mtools dosfstools \
                 debian-archive-keyring ca-certificates git
 
