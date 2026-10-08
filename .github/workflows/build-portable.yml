@@ -131,10 +131,30 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar disco virtual.' }
           }
           $ram = if ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory -ge 8GB) { 4096 } else { 2048 }
-          $args = @('-machine','q35,accel=whpx','-cpu','host','-m',$ram,'-smp','4','-drive',"file=$Disk,if=virtio,format=qcow2",'-nic','user,model=virtio','-device','virtio-vga','-usb','-device','usb-tablet')
+          $cores = if ([Environment]::ProcessorCount -ge 8) { 4 } elseif ([Environment]::ProcessorCount -ge 4) { 2 } else { 1 }
+
+          # WHPX can fail on some Windows/firmware combinations with
+          # "Unexpected VP exit code 4" and leave the QEMU display paused.
+          # Use portable TCG by default for maximum compatibility.
+          # Set FORGE_USE_WHPX=1 only on a machine known to support WHPX.
+          $useWhpx = $env:FORGE_USE_WHPX -eq '1'
+          if ($useWhpx) {
+            $cpuArgs = @('-accel','whpx','-cpu','host')
+            Write-Host 'Forge OS Portable: WHPX ativado.' -ForegroundColor Yellow
+          } else {
+            $cpuArgs = @('-accel','tcg,thread=multi','-cpu','max')
+            Write-Host 'Forge OS Portable: modo compatibilidade TCG ativado.' -ForegroundColor Cyan
+          }
+
+          $args = @('-machine','q35') + $cpuArgs + @('-m',$ram,'-smp',"$cores",'-drive',"file=$Disk,if=virtio,format=qcow2",'-nic','user,model=virtio','-device','virtio-vga','-usb','-device','usb-tablet','-boot','menu=on')
           if (Test-Path $Iso) { $args += @('-cdrom',$Iso) }
-          Write-Host 'Forge OS Portable iniciando. Na primeira execucao, use o instalador para instalar no disco virtual.' -ForegroundColor Cyan
+          Write-Host 'Forge OS Portable iniciando...' -ForegroundColor Cyan
           & $Qemu @args
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            Write-Warning "QEMU terminou com codigo $exitCode."
+          }
+          exit $exitCode
           '@ | Set-Content -Encoding UTF8 portable-package\ForgeOS-Portable.ps1
 
           @'
@@ -142,6 +162,9 @@ jobs:
           # Execute ForgeOS-Portable.bat no Windows.
           # Na primeira inicializacao, instale o Forge OS no disco virtual ForgeOS-Portable.qcow2.
           # Depois da instalacao, o mesmo disco persistente sera reutilizado.
+          #
+          # O Portable usa TCG por padrao porque e o modo mais compativel.
+          # Se WHPX funcionar no computador, use FORGE_USE_WHPX=1 antes de iniciar.
           # O ISO permanece incluido para reinstalacao limpa.
           '@ | Set-Content -Encoding UTF8 portable-package\README-PORTABLE.txt
 
