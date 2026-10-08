@@ -1,4 +1,11 @@
 task-xfce-desktop
+xfce4-session
+lightdm
+lightdm-gtk-greeter
+xserver-xorg
+xserver-xorg-core
+xserver-xorg-video-all
+dbus-x11
 calamares
 calamares-settings-debian
 network-manager
