@@ -136,7 +136,6 @@ jobs:
           # WHPX can fail on some Windows/firmware combinations with
           # "Unexpected VP exit code 4" and leave the QEMU display paused.
           # Use portable TCG by default for maximum compatibility.
-          # Set FORGE_USE_WHPX=1 only on a machine known to support WHPX.
           $useWhpx = $env:FORGE_USE_WHPX -eq '1'
           if ($useWhpx) {
             $cpuArgs = @('-accel','whpx','-cpu','host')
@@ -146,7 +145,9 @@ jobs:
             Write-Host 'Forge OS Portable: modo compatibilidade TCG ativado.' -ForegroundColor Cyan
           }
 
-          $args = @('-machine','q35') + $cpuArgs + @('-m',$ram,'-smp',"$cores",'-drive',"file=$Disk,if=virtio,format=qcow2",'-nic','user,model=virtio','-device','virtio-vga','-usb','-device','usb-tablet','-boot','menu=on')
+          # Use the standard emulated VGA adapter for maximum Xorg compatibility.
+          # virtio-vga can leave XFCE on a black screen on some QEMU/Windows hosts.
+          $args = @('-machine','q35') + $cpuArgs + @('-m',$ram,'-smp',"$cores",'-drive',"file=$Disk,if=virtio,format=qcow2",'-nic','user,model=virtio','-vga','std','-usb','-device','usb-tablet','-boot','menu=on')
           if (Test-Path $Iso) { $args += @('-cdrom',$Iso) }
           Write-Host 'Forge OS Portable iniciando...' -ForegroundColor Cyan
           & $Qemu @args
@@ -163,8 +164,8 @@ jobs:
           # Na primeira inicializacao, instale o Forge OS no disco virtual ForgeOS-Portable.qcow2.
           # Depois da instalacao, o mesmo disco persistente sera reutilizado.
           #
-          # O Portable usa TCG por padrao porque e o modo mais compativel.
-          # Se WHPX funcionar no computador, use FORGE_USE_WHPX=1 antes de iniciar.
+          # O Portable usa TCG por padrao e VGA padrao para compatibilidade grafica.
+          # WHPX pode ser ativado com FORGE_USE_WHPX=1 em computadores compativeis.
           # O ISO permanece incluido para reinstalacao limpa.
           '@ | Set-Content -Encoding UTF8 portable-package\README-PORTABLE.txt
 
