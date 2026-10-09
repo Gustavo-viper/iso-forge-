@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-# Forge OS branding and lightweight defaults.
-mkdir -p /etc/skel/Desktop /usr/share/backgrounds/forge
+# Forge OS V1.1 branding and desktop defaults.
+mkdir -p /etc/skel/Desktop /etc/skel/Forge/Projects /etc/skel/Forge/Games /etc/skel/Forge/SDKs /etc/skel/Forge/Downloads /usr/share/backgrounds/forge /usr/local/bin /etc/xdg/autostart
 cp /usr/share/backgrounds/forge/forge-wallpaper.svg /etc/skel/forge-wallpaper.svg || true
 
 # Make the installer visible on the live desktop.
@@ -45,3 +45,24 @@ systemctl set-default graphical.target 2>/dev/null || true
 # expose different DRM/framebuffer devices; letting Xorg auto-detect avoids a
 # black screen caused by an incompatible hard-coded modesetting device.
 rm -f /etc/X11/xorg.conf.d/20-forge-modesetting.conf 2>/dev/null || true
+
+# Install the Forge per-user desktop initializer.
+cp /workspace/forge/forge-desktop-init.sh /usr/local/bin/forge-desktop-init.sh
+chmod +x /usr/local/bin/forge-desktop-init.sh
+cat > /etc/xdg/autostart/forge-desktop-init.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Forge Desktop Initialization
+Comment=Aplica o layout, tema e atalhos do Forge OS
+Exec=/usr/local/bin/forge-desktop-init.sh
+Terminal=false
+OnlyShowIn=XFCE;
+X-GNOME-Autostart-enabled=true
+EOF
+
+# Mark the V1.1 release in the installed system.
+cat > /etc/forge-os-release <<'EOF'
+FORGE_OS_VERSION="1.1"
+FORGE_OS_CODENAME="V1.1 Gaming & Dev"
+FORGE_OS_BASE="Debian 12 Bookworm"
+EOF
