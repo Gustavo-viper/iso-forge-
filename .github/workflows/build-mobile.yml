@@ -14,38 +14,27 @@ env:
 jobs:
   build-mobile:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build ARM64 Forge OS image inside privileged Debian container
+      - name: Build ARM64 Forge OS image in native ARM64 container
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --privileged \
+          docker run --rm --privileged --platform linux/arm64/v8 \
             -v "$GITHUB_WORKSPACE:/workspace" \
             -w /workspace \
             debian:bookworm \
             bash -lc '
               set -euo pipefail
               export DEBIAN_FRONTEND=noninteractive
-
               apt-get update
-              apt-get install -y --no-install-recommends \
-                bash live-build xorriso squashfs-tools debootstrap \
-                grub-efi-arm64-bin grub-efi-amd64-bin mtools dosfstools \
-                debian-archive-keyring ca-certificates git
+              apt-get install -y --no-install-recommends bash live-build xorriso squashfs-tools debootstrap grub-efi-arm64-bin mtools dosfstools debian-archive-keyring ca-certificates git
 
               rm -rf mobile-config mobile-chroot mobile-binary mobile-cache
-              mkdir -p \
-                mobile-config/package-lists \
-                mobile-config/includes.chroot/etc/lightdm/lightdm.conf.d \
-                mobile-config/includes.chroot/etc/X11/xorg.conf.d \
-                mobile-config/includes.chroot/usr/share/applications \
-                mobile-config/includes.chroot/usr/share/backgrounds/forge \
-                mobile-config/includes.chroot/etc/skel/Desktop \
-                mobile-config/hooks/normal
+              mkdir -p mobile-config/package-lists mobile-config/includes.chroot/etc/lightdm/lightdm.conf.d mobile-config/includes.chroot/etc/X11/xorg.conf.d mobile-config/includes.chroot/usr/share/applications mobile-config/includes.chroot/usr/share/backgrounds/forge mobile-config/includes.chroot/etc/skel/Desktop mobile-config/hooks/normal
 
               cat > mobile-config/package-lists/forge-mobile.list.chroot <<"EOF"
 linux-image-arm64
@@ -55,6 +44,7 @@ systemd-sysv
 lightdm
 xfce4
 xfce4-terminal
+xfce4-whiskermenu-plugin
 thunar
 network-manager
 network-manager-gnome
@@ -110,11 +100,8 @@ EOF
               cat > mobile-config/hooks/normal/0100-forge-mobile.hook.chroot <<"EOF"
 #!/bin/sh
 set -e
-
 useradd -m -s /bin/bash forge 2>/dev/null || true
 usermod -aG sudo,audio,video,netdev forge 2>/dev/null || true
-printf "forge:forge\n" | chpasswd
-
 cat > /usr/local/bin/forge-mobile-session <<'SCRIPT'
 #!/bin/sh
 mkdir -p /home/forge/Desktop
@@ -122,11 +109,9 @@ cp /usr/share/backgrounds/forge/forge-wallpaper.svg /home/forge/forge-wallpaper.
 chown -R forge:forge /home/forge 2>/dev/null || true
 SCRIPT
 chmod +x /usr/local/bin/forge-mobile-session
-
 mkdir -p /etc/skel/Desktop
 cp /usr/share/applications/forge-installer.desktop /etc/skel/Desktop/Forge-OS-Installer.desktop 2>/dev/null || true
 chmod +x /etc/skel/Desktop/Forge-OS-Installer.desktop 2>/dev/null || true
-
 systemctl enable NetworkManager.service 2>/dev/null || true
 systemctl enable lightdm.service 2>/dev/null || true
 EOF
@@ -134,28 +119,16 @@ EOF
 
               cd mobile-config
               lb clean --purge || true
-              lb config \
-                --distribution bookworm \
-                --architectures arm64 \
-                --binary-images iso-hybrid \
-                --archive-areas "main contrib non-free non-free-firmware" \
-                --mirror-bootstrap http://deb.debian.org/debian \
-                --mirror-chroot http://deb.debian.org/debian \
-                --mirror-binary http://deb.debian.org/debian \
-                --bootappend-live "boot=live components username=forge hostname=forge-mobile" \
-                --apt-indices false \
-                --security false \
-                --memtest none
+              lb config --distribution bookworm --architectures arm64 --binary-images iso --archive-areas "main contrib non-free non-free-firmware" --mirror-bootstrap http://deb.debian.org/debian --mirror-chroot http://deb.debian.org/debian --mirror-binary http://deb.debian.org/debian --bootappend-live "boot=live components username=forge hostname=forge-mobile" --apt-indices false --security false --memtest none
 
               if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then
                 echo "Ubuntu repository detected in Forge Mobile configuration."
                 exit 1
               fi
 
-              echo "Starting Forge OS Mobile ARM64 build..."
               lb build 2>&1 | tee forge-mobile-build.log
-              test -f live-image-arm64.hybrid.iso
-              mv live-image-arm64.hybrid.iso ../ForgeOS-Mobile-ARM64.iso
+              test -f live-image-arm64.iso
+              mv live-image-arm64.iso ../ForgeOS-Mobile-ARM64.iso
               sha256sum ../ForgeOS-Mobile-ARM64.iso | tee ../ForgeOS-Mobile-ARM64.iso.sha256
             '
 
