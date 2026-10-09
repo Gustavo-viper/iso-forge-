@@ -29,25 +29,41 @@ if [ ! -f "$HOME/.config/forge-v11-initialized" ]; then
   mkdir -p "$HOME/.config"
   touch "$HOME/.config/forge-v11-initialized"
 
-  for app in firefox-esr thunar xfce4-terminal mousepad steam lutris; do
+  for app in firefox-esr thunar xfce4-terminal mousepad lutris; do
     desktop="/usr/share/applications/${app}.desktop"
     if [ -f "$desktop" ]; then
       cp -f "$desktop" "$HOME/Desktop/" 2>/dev/null || true
     fi
   done
 
-  # Friendly Forge launchers.
+  # Forge Gaming Center opens the installed gaming stack.
   cat > "$HOME/Desktop/Forge-Gaming-Center.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=Forge Gaming Center
-Comment=Jogos, Steam, Lutris e ferramentas de desempenho
+Comment=Jogos, Lutris, Wine e ferramentas de desempenho
 Exec=lutris
 Icon=applications-games
 Terminal=false
 Categories=Game;
 EOF
   chmod +x "$HOME/Desktop/Forge-Gaming-Center.desktop"
+
+  # Optional Steam setup. Steam is not baked into the ISO because Debian's
+  # Steam package requires i386 repositories; the installer enables i386 first.
+  if [ -x /usr/local/bin/forge-install-steam ]; then
+    cat > "$HOME/Desktop/Forge-Install-Steam.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Instalar Steam
+Comment=Ativa i386 e instala o Steam no Forge OS
+Exec=pkexec /usr/local/bin/forge-install-steam
+Icon=steam
+Terminal=true
+Categories=Game;
+EOF
+    chmod +x "$HOME/Desktop/Forge-Install-Steam.desktop"
+  fi
 
   cat > "$HOME/Desktop/Forge-Dev-Center.desktop" <<'EOF'
 [Desktop Entry]
