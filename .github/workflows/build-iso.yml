@@ -19,6 +19,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up QEMU for ARM64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Build Forge OS x64
         shell: bash
         run: |
@@ -46,14 +51,14 @@ jobs:
             sha256sum ForgeOS-V1-x64.iso | tee ForgeOS-V1-x64.iso.sha256
           '
 
-      - name: Build Forge OS ARM64 Mobile in native ARM64 container
+      - name: Build Forge OS ARM64 Mobile with QEMU emulation
         shell: bash
         run: |
           set -euo pipefail
           docker run --rm --privileged --platform linux/arm64/v8 -v "$GITHUB_WORKSPACE:/workspace" -w /workspace debian:bookworm bash -lc '
             set -euo pipefail
             export DEBIAN_FRONTEND=noninteractive
-            echo "Preparing native ARM64 Debian build environment..."
+            echo "Preparing ARM64 Debian build environment through QEMU..."
             apt-get update
             apt-get install -y --no-install-recommends bash live-build xorriso squashfs-tools debootstrap grub-efi-arm64-bin grub-efi-arm64 grub2-common mtools dosfstools debian-archive-keyring ca-certificates git
             rm -rf config chroot binary cache
@@ -94,5 +99,5 @@ jobs:
             ForgeOS-Mobile-ARM64.iso.sha256
           retention-days: 30
 
-# x64 remains a native amd64 Debian build. ARM64 uses a plain ISO image because
-# iso-hybrid is not required for UEFI ARM64 guests such as UTM.
+# x64 remains a native amd64 Debian build. ARM64 uses QEMU emulation because
+# GitHub-hosted ubuntu runners are amd64; the resulting ISO targets ARM64 UEFI devices.
