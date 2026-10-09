@@ -55,7 +55,7 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
             echo "Preparing native ARM64 Debian build environment..."
             apt-get update
-            apt-get install -y --no-install-recommends bash live-build xorriso squashfs-tools debootstrap grub-efi-arm64-bin mtools dosfstools debian-archive-keyring ca-certificates git
+            apt-get install -y --no-install-recommends bash live-build xorriso squashfs-tools debootstrap grub-efi-arm64-bin grub-efi-arm64 grub2-common mtools dosfstools debian-archive-keyring ca-certificates git
             rm -rf config chroot binary cache
             mkdir -p config/package-lists config/includes.chroot/usr/share/backgrounds/forge config/includes.chroot/usr/local/bin config/hooks/normal
             cp forge/package-lists/forge-mobile.list.chroot config/package-lists/forge.list.chroot
