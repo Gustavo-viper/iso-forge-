@@ -34,8 +34,9 @@ jobs:
             cp forge/forge-installer.desktop config/includes.chroot/usr/share/applications/forge-installer.desktop
             cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
             cp forge/forge-desktop-init.sh config/includes.chroot/usr/local/bin/forge-desktop-init.sh
+            cp forge/install-steam.sh config/includes.chroot/usr/local/bin/forge-install-steam
             cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
-            chmod +x config/includes.chroot/usr/local/bin/forge-desktop-init.sh config/hooks/normal/0100-forge-branding.hook.chroot
+            chmod +x config/includes.chroot/usr/local/bin/forge-desktop-init.sh config/includes.chroot/usr/local/bin/forge-install-steam config/hooks/normal/0100-forge-branding.hook.chroot
             lb clean --purge || true
             lb config --distribution bookworm --architectures amd64 --binary-images iso-hybrid --archive-areas "main contrib non-free non-free-firmware" --mirror-bootstrap http://deb.debian.org/debian --mirror-chroot http://deb.debian.org/debian --mirror-binary http://deb.debian.org/debian --bootappend-live "boot=live components username=forge hostname=forge-os" --apt-indices false --security false --memtest none
             if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then exit 1; fi
@@ -60,8 +61,9 @@ jobs:
             cp forge/package-lists/forge-mobile.list.chroot config/package-lists/forge.list.chroot
             cp forge/forge-wallpaper.svg config/includes.chroot/usr/share/backgrounds/forge/forge-wallpaper.svg
             cp forge/forge-desktop-init.sh config/includes.chroot/usr/local/bin/forge-desktop-init.sh
+            cp forge/install-steam.sh config/includes.chroot/usr/local/bin/forge-install-steam
             cp forge/hooks/0100-forge-branding.hook.chroot config/hooks/normal/0100-forge-branding.hook.chroot
-            chmod +x config/includes.chroot/usr/local/bin/forge-desktop-init.sh config/hooks/normal/0100-forge-branding.hook.chroot
+            chmod +x config/includes.chroot/usr/local/bin/forge-desktop-init.sh config/includes.chroot/usr/local/bin/forge-install-steam config/hooks/normal/0100-forge-branding.hook.chroot
             lb clean --purge || true
             lb config --distribution bookworm --architectures arm64 --binary-images iso --archive-areas "main contrib non-free non-free-firmware" --mirror-bootstrap http://deb.debian.org/debian --mirror-chroot http://deb.debian.org/debian --mirror-binary http://deb.debian.org/debian --bootappend-live "boot=live components username=forge hostname=forge-os-mobile" --apt-indices false --security false --memtest none
             if grep -RqsE "ubuntu\\.com/ubuntu|archive\\.ubuntu\\.com|security\\.ubuntu\\.com" config; then exit 1; fi
