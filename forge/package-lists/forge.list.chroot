@@ -96,9 +96,19 @@ gdb
 valgrind
 git
 git-lfs
+git-gui
+gitk
+gh
 curl
 wget
 ca-certificates
+gnupg
+jq
+shellcheck
+tmux
+zsh
+vim
+neovim
 python3
 python3-pip
 python3-venv
@@ -107,9 +117,21 @@ python3-setuptools
 nodejs
 npm
 openjdk-17-jdk
+gradle
 rustc
 cargo
 golang-go
+
+# IDEs and desktop programming tools
+codeblocks
+codelite
+qtcreator
+
+# Android development and device tools
+adb
+fastboot
+android-sdk-platform-tools-common
+scrcpy
 
 # Libraries / SDK development
 libssl-dev
