@@ -15,6 +15,18 @@ if command -v xfconf-query >/dev/null 2>&1; then
   xfconf-query -c xfce4-panel -p /panels/panel-1/length -s 100 2>/dev/null || true
   xfconf-query -c xfce4-panel -p /panels/panel-1/autohide-behavior -s 0 2>/dev/null || true
   xfconf-query -c xfce4-desktop -p /desktop-icons/style -s 2 2>/dev/null || true
+  # Forge is an always-ready live desktop: do not lock the session automatically.
+  xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/lock-screen-suspend-hibernate -s false 2>/dev/null || true
+  xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/lock-screen-on-suspend -s false 2>/dev/null || true
+  xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-on-ac-off -s 0 2>/dev/null || true
+  xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-on-battery-off -s 0 2>/dev/null || true
+fi
+
+# Disable X11 screen blanking/locking for the live session.
+if command -v xset >/dev/null 2>&1; then
+  xset s off 2>/dev/null || true
+  xset -dpms 2>/dev/null || true
+  xset s noblank 2>/dev/null || true
 fi
 
 # Forge-specific GTK styling. It keeps the familiar Windows-like layout while
