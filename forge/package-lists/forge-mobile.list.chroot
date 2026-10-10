@@ -26,3 +26,12 @@ udisks2
 ntfs-3g
 exfatprogs
 policykit-1
+
+# UEFI bootloader for ARM64 installs
+grub-common
+grub2-common
+grub-efi-arm64
+grub-efi-arm64-bin
+efibootmgr
+calamares
+calamares-settings-debian
