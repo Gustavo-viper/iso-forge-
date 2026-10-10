@@ -41,15 +41,82 @@ systemctl set-default graphical.target 2>/dev/null || true
 # Let Xorg auto-detect the GPU to avoid QEMU/real-hardware black screens.
 rm -f /etc/X11/xorg.conf.d/20-forge-modesetting.conf 2>/dev/null || true
 
-# The live Forge user can perform the first-boot application setup without
-# interactive password prompts. The system still keeps normal sudo for users.
-mkdir -p /etc/sudoers.d
+# First-boot application installers run without interactive password prompts.
+mkdir -p /usr/local/bin /etc/sudoers.d
+
+cat > /usr/local/bin/forge-install-dev-tools <<'EOF'
+#!/bin/sh
+set -u
+
+LOG=/tmp/forge-dev-tools-install.log
+exec >"$LOG" 2>&1
+
+echo 'Forge Dev Tools: iniciando instalação.'
+
+# VS Code — prefer the current Microsoft APT repository. If the repository
+# cannot be reached, leave the system usable and retry on a later login.
+if ! command -v code >/dev/null 2>&1; then
+  arch=$(dpkg --print-architecture)
+  curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg || true
+  printf 'deb [arch=%s signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main\n' "$arch" > /etc/apt/sources.list.d/vscode.list
+  apt-get update || true
+  apt-get install -y code || true
+fi
+
+# Android Studio — resolve the current official Google Linux archive at
+# install time, avoiding an obsolete Studio version baked into the ISO.
+if [ ! -x /opt/android-studio/bin/studio ]; then
+  mkdir -p /opt
+  studio_url=$(curl -fsSL https://developer.android.com/studio 2>/dev/null | \
+    grep -oE 'https://[^" ]+android-studio-[^" ]+-linux\.tar\.gz' | head -n 1 || true)
+  if [ -n "$studio_url" ]; then
+    tmp=/tmp/android-studio.tar.gz
+    if curl -fL "$studio_url" -o "$tmp"; then
+      rm -rf /opt/android-studio
+      tar -xzf "$tmp" -C /opt
+      rm -f "$tmp"
+    fi
+  fi
+fi
+
+# Android Studio launcher.
+if [ -x /opt/android-studio/bin/studio ]; then
+  cat > /usr/share/applications/forge-android-studio.desktop <<'EOF2'
+[Desktop Entry]
+Type=Application
+Name=Android Studio — Forge
+Comment=Desenvolvimento Android no Forge OS
+Exec=/opt/android-studio/bin/studio
+Icon=/opt/android-studio/bin/studio.png
+Terminal=false
+Categories=Development;IDE;
+EOF2
+fi
+
+# VS Code launcher.
+if command -v code >/dev/null 2>&1; then
+  cat > /usr/share/applications/forge-vscode.desktop <<'EOF2'
+[Desktop Entry]
+Type=Application
+Name=Visual Studio Code — Forge
+Comment=IDE principal de programação
+Exec=code --new-window
+Icon=code
+Terminal=false
+Categories=Development;IDE;
+EOF2
+fi
+
+exit 0
+EOF
+chmod +x /usr/local/bin/forge-install-dev-tools
+
 cat > /etc/sudoers.d/forge-firstboot <<'EOF'
-forge ALL=(root) NOPASSWD: /usr/local/bin/forge-install-steam
+forge ALL=(root) NOPASSWD: /usr/local/bin/forge-install-steam, /usr/local/bin/forge-install-dev-tools
 EOF
 chmod 0440 /etc/sudoers.d/forge-firstboot
 
-# The workflow places this script in /usr/local/bin before the hook runs.
+# The workflow places these scripts in /usr/local/bin before the hook runs.
 chmod +x /usr/local/bin/forge-desktop-init.sh 2>/dev/null || true
 cat > /etc/xdg/autostart/forge-desktop-init.desktop <<'EOF'
 [Desktop Entry]
