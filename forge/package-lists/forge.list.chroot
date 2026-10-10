@@ -29,6 +29,13 @@ papirus-icon-theme
 fonts-inter
 fonts-noto
 
+# UEFI bootloader — keep the installer fully self-contained
+grub-common
+grub2-common
+grub-efi-amd64
+grub-efi-amd64-bin
+efibootmgr
+
 # Installer / network / hardware
 calamares
 calamares-settings-debian
