@@ -116,11 +116,26 @@ Categories=Development;Graphics;Game;
 EOF
     chmod +x "$file"
   done
+fi
 
-  # Automatic Steam setup remains separate because Debian Steam requires i386
-  # repositories. The installer enables i386 and installs Steam safely.
-  if [ -x /usr/local/bin/forge-install-steam ]; then
-    cat > "$HOME/Desktop/Forge-Install-Steam.desktop" <<'EOF'
+# Steam is the only gaming component that cannot be installed in the normal
+# live-build package phase because Debian's Steam package needs i386 enabled.
+# On the first Forge login, start the setup automatically in the background.
+# If there is no Internet, the manual desktop launcher remains available.
+if [ -x /usr/local/bin/forge-install-steam ] && [ ! -f "$HOME/.config/forge-steam-setup-done" ] && [ ! -f "$HOME/.config/forge-steam-setup-running" ]; then
+  touch "$HOME/.config/forge-steam-setup-running"
+  (
+    if sudo -n /usr/local/bin/forge-install-steam >/tmp/forge-steam-install.log 2>&1; then
+      touch "$HOME/.config/forge-steam-setup-done"
+      command -v notify-send >/dev/null 2>&1 && notify-send 'Forge Gaming' 'Steam foi instalado automaticamente.' || true
+    fi
+    rm -f "$HOME/.config/forge-steam-setup-running"
+  ) &
+fi
+
+# Keep a manual launcher even when automatic Steam setup is running/offline.
+if [ -x /usr/local/bin/forge-install-steam ]; then
+  cat > "$HOME/Desktop/Forge-Install-Steam.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=Instalar Steam
@@ -130,8 +145,7 @@ Icon=steam
 Terminal=true
 Categories=Game;
 EOF
-    chmod +x "$HOME/Desktop/Forge-Install-Steam.desktop"
-  fi
+  chmod +x "$HOME/Desktop/Forge-Install-Steam.desktop"
 fi
 
 exit 0
