@@ -130,6 +130,19 @@ EOF
   done
 fi
 
+# Install development tools that are not stable Bookworm live-build packages.
+# Run once in the background so the desktop remains usable immediately.
+if [ -x /usr/local/bin/forge-install-dev-tools ] && [ ! -f "$HOME/.config/forge-dev-tools-done" ] && [ ! -f "$HOME/.config/forge-dev-tools-running" ]; then
+  touch "$HOME/.config/forge-dev-tools-running"
+  (
+    if sudo -n /usr/local/bin/forge-install-dev-tools >/tmp/forge-dev-tools-install.log 2>&1; then
+      touch "$HOME/.config/forge-dev-tools-done"
+      command -v notify-send >/dev/null 2>&1 && notify-send 'Forge Dev' 'VS Code e Android Studio foram configurados.' || true
+    fi
+    rm -f "$HOME/.config/forge-dev-tools-running"
+  ) &
+fi
+
 # Steam is the only gaming component that cannot be installed in the normal
 # live-build package phase because Debian's Steam package needs i386 enabled.
 # On the first Forge login, start the setup automatically in the background.
