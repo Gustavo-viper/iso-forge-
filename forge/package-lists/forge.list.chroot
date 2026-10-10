@@ -131,7 +131,6 @@ qtcreator
 adb
 fastboot
 android-sdk-platform-tools-common
-scrcpy
 
 # Libraries / SDK development
 libssl-dev
