@@ -1,4 +1,4 @@
-# Desktop / Windows-like experience
+# Forge OS V1.1 — desktop / Windows-like experience
 task-xfce-desktop
 xfce4-session
 xfce4-panel
@@ -8,6 +8,7 @@ xfce4-taskmanager
 xfce4-screenshooter
 xfce4-notifyd
 xfce4-power-manager
+xfce4-terminal
 thunar
 thunar-archive-plugin
 file-roller
@@ -25,6 +26,8 @@ policykit-1
 accountsservice
 arc-theme
 papirus-icon-theme
+fonts-inter
+fonts-noto
 
 # Installer / network / hardware
 calamares
@@ -47,19 +50,37 @@ pipewire
 pipewire-audio
 wireplumber
 pavucontrol
+vlc
+ffmpeg
 
-# Gaming
+# Gaming stack
 lutris
 wine
 wine64
 winetricks
+steam-devices
 gamemode
 mangohud
+retroarch
 
-# Programming / development
+# Game development / creative tools
+blender
+godot3
+krita
+gimp
+inkscape
+kdenlive
+obs-studio
+audacity
+
+# Programming / development — C/C++ / Rust / Python / JS / Java / Go
 build-essential
 gcc
 g++
+clang
+llvm
+lld
+lldb
 make
 cmake
 ninja-build
@@ -67,18 +88,54 @@ pkg-config
 gdb
 valgrind
 git
+git-lfs
 curl
 wget
+ca-certificates
 python3
 python3-pip
 python3-venv
+python3-dev
+python3-setuptools
 nodejs
 npm
 openjdk-17-jdk
 rustc
 cargo
+golang-go
 
-# System / diagnostics
+# Libraries / SDK development
+libssl-dev
+libffi-dev
+libsqlite3-dev
+libsdl2-dev
+libgl1-mesa-dev
+libglu1-mesa-dev
+libboost-all-dev
+
+# Web / database development
+php-cli
+php-curl
+php-mbstring
+php-xml
+php-zip
+sqlite3
+postgresql-client
+mariadb-client
+redis-tools
+
+# Containers / virtual machines / testing
+podman
+qemu-system-x86
+qemu-utils
+
+# Productivity / diagnostics
+filezilla
+zip
+unzip
+p7zip-full
+rsync
+openssh-client
 sudo
 htop
 neofetch
