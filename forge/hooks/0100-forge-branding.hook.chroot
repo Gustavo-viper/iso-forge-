@@ -41,6 +41,14 @@ systemctl set-default graphical.target 2>/dev/null || true
 # Let Xorg auto-detect the GPU to avoid QEMU/real-hardware black screens.
 rm -f /etc/X11/xorg.conf.d/20-forge-modesetting.conf 2>/dev/null || true
 
+# The live Forge user can perform the first-boot application setup without
+# interactive password prompts. The system still keeps normal sudo for users.
+mkdir -p /etc/sudoers.d
+cat > /etc/sudoers.d/forge-firstboot <<'EOF'
+forge ALL=(root) NOPASSWD: /usr/local/bin/forge-install-steam
+EOF
+chmod 0440 /etc/sudoers.d/forge-firstboot
+
 # The workflow places this script in /usr/local/bin before the hook runs.
 chmod +x /usr/local/bin/forge-desktop-init.sh 2>/dev/null || true
 cat > /etc/xdg/autostart/forge-desktop-init.desktop <<'EOF'
