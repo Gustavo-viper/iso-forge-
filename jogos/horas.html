@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Que Horas São?</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    #relogio { width: min(260px, 70vw); height: auto; margin: 0 auto 18px; display: block; }
+    .opcao { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <a href="../index.html">← Jogos</a>
+    <h1>🕒 Que Horas São?</h1>
+    <span class="placar" id="placar"></span>
+  </header>
+  <main>
+    <section class="cartao centro" id="menu">
+      <h2>Escolha o nível</h2>
+      <div class="linha-botoes" id="niveis">
+        <button class="btn secundario ativo" data-nivel="60">Horas cheias</button>
+        <button class="btn secundario" data-nivel="30">Meia hora</button>
+        <button class="btn secundario" data-nivel="15">Quartos de hora</button>
+        <button class="btn secundario" data-nivel="5">De 5 em 5 minutos</button>
+      </div>
+      <p class="muted">O ponteiro <b>curto</b> mostra as horas. O ponteiro <b>longo</b> mostra os minutos.</p>
+      <button class="btn" id="comecar">Começar!</button>
+    </section>
+
+    <section class="cartao centro oculto" id="jogo">
+      <div class="barra"><div id="progresso"></div></div>
+      <svg id="relogio" viewBox="0 0 200 200" role="img" aria-label="Relógio de ponteiros">
+        <circle cx="100" cy="100" r="94" fill="#fff" stroke="#6c4cf1" stroke-width="8"/>
+        <g id="marcas"></g>
+        <line id="ponteiro-hora" x1="100" y1="100" x2="100" y2="62" stroke="#2b2550" stroke-width="8" stroke-linecap="round"/>
+        <line id="ponteiro-min" x1="100" y1="100" x2="100" y2="43" stroke="#e05297" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="100" cy="100" r="6" fill="#2b2550"/>
+      </svg>
+      <div class="opcoes" id="opcoes"></div>
+      <div class="mensagem" id="mensagem"></div>
+    </section>
+
+    <section class="cartao oculto" id="fim"></section>
+  </main>
+
+  <script src="../js/comum.js"></script>
+  <script>
+    const { aleatorio, embaralhar, som, mostrarResultado } = Jogos;
+    const TOTAL = 10;
+    const $ = id => document.getElementById(id);
+    let passo = 60, indice = 0, acertos = 0;
+
+    // Desenha números e marcas do mostrador.
+    const marcas = $("marcas");
+    for (let i = 0; i < 60; i++) {
+      const ang = (i * 6) * Math.PI / 180;
+      const grande = i % 5 === 0;
+      const r1 = grande ? 80 : 85, r2 = 89;
+      marcas.insertAdjacentHTML("beforeend",
+        `<line x1="${100 + r1 * Math.sin(ang)}" y1="${100 - r1 * Math.cos(ang)}" x2="${100 + r2 * Math.sin(ang)}" y2="${100 - r2 * Math.cos(ang)}" stroke="#2b2550" stroke-width="${grande ? 3 : 1}"/>`);
+      if (grande) {
+        const n = i / 5 || 12, rn = 67;
+        marcas.insertAdjacentHTML("beforeend",
+          `<text x="${100 + rn * Math.sin(ang)}" y="${100 - rn * Math.cos(ang) + 6}" text-anchor="middle" font-size="17" font-weight="800" fill="#2b2550" font-family="sans-serif">${n}</text>`);
+      }
+    }
+
+    $("niveis").addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      $("niveis").querySelectorAll("button").forEach(x => x.classList.toggle("ativo", x === b));
+      passo = Number(b.dataset.nivel);
+    });
+
+    const fmt = (h, m) => `${h}:${String(m).padStart(2, "0")}`;
+
+    function sortearHora() {
+      return { h: aleatorio(1, 12), m: aleatorio(0, 60 / passo - 1) * passo };
+    }
+
+    function mostrarRelogio({ h, m }) {
+      const angMin = m * 6;
+      const angHora = (h % 12) * 30 + m * 0.5;
+      $("ponteiro-min").setAttribute("transform", `rotate(${angMin} 100 100)`);
+      $("ponteiro-hora").setAttribute("transform", `rotate(${angHora} 100 100)`);
+    }
+
+    function comecar() {
+      indice = 0; acertos = 0;
+      $("menu").classList.add("oculto");
+      $("fim").classList.add("oculto");
+      $("jogo").classList.remove("oculto");
+      proxima();
+    }
+
+    function proxima() {
+      if (indice >= TOTAL) return terminar();
+      const hora = sortearHora();
+      const certa = fmt(hora.h, hora.m);
+      mostrarRelogio(hora);
+      // Distratores comuns: trocar os ponteiros, errar a hora por um, errar os minutos.
+      const opcoes = new Set([certa]);
+      const candidatos = [
+        fmt(hora.h % 12 + 1, hora.m),
+        fmt((hora.h + 10) % 12 + 1, hora.m),
+        fmt(hora.h, (hora.m + passo) % 60),
+      ];
+      if (hora.m > 0 && hora.m % 5 === 0) candidatos.push(fmt(hora.m / 5, hora.h * 5 % 60));
+      embaralhar(candidatos).forEach(c => { if (opcoes.size < 4) opcoes.add(c); });
+      while (opcoes.size < 4) { const o = sortearHora(); opcoes.add(fmt(o.h, o.m)); }
+
+      $("progresso").style.width = `${(indice / TOTAL) * 100}%`;
+      $("placar").textContent = `Acertos: ${acertos}`;
+      $("mensagem").textContent = "";
+      $("mensagem").className = "mensagem";
+      const box = $("opcoes");
+      box.innerHTML = "";
+      embaralhar([...opcoes]).forEach(v => {
+        const b = document.createElement("button");
+        b.className = "opcao";
+        b.textContent = v;
+        b.addEventListener("click", () => responder(b, v === certa, certa));
+        box.appendChild(b);
+      });
+    }
+
+    function responder(botao, certo, certa) {
+      $("opcoes").querySelectorAll("button").forEach(b => {
+        b.disabled = true;
+        if (b.textContent === certa) b.classList.add("certa");
+      });
+      const msg = $("mensagem");
+      if (certo) { acertos++; som.acerto(); msg.textContent = "Isso mesmo! ⏰"; msg.classList.add("ok"); }
+      else { botao.classList.add("errada"); som.erro(); msg.textContent = `O relógio marca ${certa}.`; msg.classList.add("erro"); }
+      $("placar").textContent = `Acertos: ${acertos}`;
+      indice++;
+      setTimeout(proxima, certo ? 1000 : 2000);
+    }
+
+    function terminar() {
+      $("jogo").classList.add("oculto");
+      const fim = $("fim");
+      fim.classList.remove("oculto");
+      mostrarResultado(fim, {
+        jogo: "horas", acertos, total: TOTAL,
+        aoReiniciar: () => { fim.classList.add("oculto"); $("menu").classList.remove("oculto"); },
+      });
+    }
+
+    $("comecar").addEventListener("click", comecar);
+  </script>
+</body>
+</html>

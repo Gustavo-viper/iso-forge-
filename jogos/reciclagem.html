@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coleta Seletiva</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .item {
+      font-size: clamp(3.5rem, 15vw, 5.5rem);
+      line-height: 1;
+      margin: 6px 0;
+      cursor: grab;
+      user-select: none;
+      display: inline-block;
+    }
+    .nome-item { font-size: 1.3rem; font-weight: 800; margin-bottom: 18px; }
+    .lixeiras {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+    .lixeira {
+      font: inherit; font-weight: 800; color: #fff;
+      border: none; border-radius: 14px 14px 22px 22px;
+      padding: 14px 4px 12px; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      box-shadow: inset 0 -6px 0 rgba(0,0,0,.18);
+      transition: transform .1s, outline .1s;
+      font-size: .95rem;
+    }
+    .lixeira .tampa { font-size: 1.8rem; }
+    .lixeira:hover, .lixeira.sobre { transform: translateY(-4px); outline: 4px solid rgba(0,0,0,.15); }
+    .lixeira:disabled { opacity: .6; cursor: default; transform: none; }
+    .azul { background: #1e6fd9; }
+    .vermelho { background: #d63d3d; }
+    .amarelo { background: #e6b400; color: #3a2e00; }
+    .verde { background: #1f9d55; }
+    .marrom { background: #8a5a2b; }
+    .explicacao { color: var(--muted); min-height: 2.8em; margin-top: 4px; }
+    @media (max-width: 560px) {
+      .lixeiras { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <a href="../index.html">← Jogos</a>
+    <h1>♻️ Coleta Seletiva</h1>
+    <span class="placar" id="placar"></span>
+  </header>
+  <main>
+    <section class="cartao centro" id="jogo">
+      <div class="barra"><div id="progresso"></div></div>
+      <p class="muted">Arraste o resíduo até a lixeira certa — ou toque na lixeira.</p>
+      <div class="item" id="item" draggable="true"></div>
+      <div class="nome-item" id="nome-item"></div>
+      <div class="lixeiras" id="lixeiras">
+        <button class="lixeira azul" data-tipo="papel"><span class="tampa">📄</span>Papel</button>
+        <button class="lixeira vermelho" data-tipo="plastico"><span class="tampa">🧴</span>Plástico</button>
+        <button class="lixeira amarelo" data-tipo="metal"><span class="tampa">🥫</span>Metal</button>
+        <button class="lixeira verde" data-tipo="vidro"><span class="tampa">🍾</span>Vidro</button>
+        <button class="lixeira marrom" data-tipo="organico"><span class="tampa">🍂</span>Orgânico</button>
+      </div>
+      <div class="mensagem" id="mensagem"></div>
+      <div class="explicacao" id="explicacao"></div>
+    </section>
+    <section class="cartao oculto" id="fim"></section>
+  </main>
+
+  <script src="../js/comum.js"></script>
+  <script>
+    const { sortear, som, mostrarResultado } = Jogos;
+    const RODADAS = 12;
+    const NOMES = { papel: "Papel (azul)", plastico: "Plástico (vermelho)", metal: "Metal (amarelo)", vidro: "Vidro (verde)", organico: "Orgânico (marrom)" };
+    // [emoji, nome, tipo, explicação]
+    const ITENS = [
+      ["📰", "Jornal velho", "papel", "Jornais e revistas são feitos de papel e podem virar papel novo."],
+      ["📦", "Caixa de papelão", "papel", "Papelão é reciclado como papel. Desmonte a caixa antes de descartar!"],
+      ["📓", "Caderno usado", "papel", "Folhas de caderno vão para o papel."],
+      ["✉️", "Envelope", "papel", "Envelopes de papel vão para a lixeira azul."],
+      ["🧴", "Frasco de xampu", "plastico", "Embalagens de produtos de higiene costumam ser de plástico."],
+      ["🥤", "Copo plástico", "plastico", "Copos descartáveis são de plástico. Melhor ainda: use uma garrafinha!"],
+      ["🛍️", "Sacola plástica", "plastico", "Sacolinhas são de plástico. Prefira uma sacola retornável."],
+      ["🪥", "Escova de dente", "plastico", "O cabo da escova é de plástico."],
+      ["🥫", "Lata de milho", "metal", "Latas de alimentos são de aço, um metal."],
+      ["🥤", "Latinha de refrigerante", "metal", "Latinhas são de alumínio e podem ser recicladas infinitas vezes!"],
+      ["🔩", "Parafuso", "metal", "Parafusos são de metal."],
+      ["📎", "Clipes", "metal", "Clipes de papel são feitos de metal."],
+      ["🍾", "Garrafa de vidro", "vidro", "Garrafas de vidro podem ser derretidas e viram novas garrafas."],
+      ["🫙", "Pote de geleia", "vidro", "Potes de vidro vão para a lixeira verde. Lave antes!"],
+      ["🍷", "Taça quebrada", "vidro", "Vidro vai para a lixeira verde, mas embrulhe bem os cacos para ninguém se cortar."],
+      ["🍌", "Casca de banana", "organico", "Restos de frutas são orgânicos e viram adubo na compostagem."],
+      ["🍎", "Resto de maçã", "organico", "Restos de comida são orgânicos."],
+      ["🥚", "Casca de ovo", "organico", "Cascas de ovo são orgânicas e ótimas para a compostagem."],
+      ["🍂", "Folhas secas", "organico", "Folhas são material orgânico."],
+      ["☕", "Borra de café", "organico", "A borra de café é orgânica e pode adubar plantas."],
+    ];
+    const $ = id => document.getElementById(id);
+    let fila, indice, acertos, atual, aguardando;
+
+    function novoJogo() {
+      fila = sortear(ITENS, RODADAS);
+      indice = 0; acertos = 0;
+      $("fim").classList.add("oculto");
+      $("jogo").classList.remove("oculto");
+      proximo();
+    }
+
+    function proximo() {
+      if (indice >= fila.length) return terminar();
+      atual = fila[indice];
+      aguardando = true;
+      $("item").textContent = atual[0];
+      $("nome-item").textContent = atual[1];
+      $("mensagem").textContent = "";
+      $("mensagem").className = "mensagem";
+      $("explicacao").textContent = "";
+      $("progresso").style.width = `${(indice / fila.length) * 100}%`;
+      $("placar").textContent = `Acertos: ${acertos}/${fila.length}`;
+      $("lixeiras").querySelectorAll("button").forEach(b => b.disabled = false);
+    }
+
+    function descartar(tipo) {
+      if (!aguardando) return;
+      aguardando = false;
+      $("lixeiras").querySelectorAll("button").forEach(b => b.disabled = true);
+      const msg = $("mensagem");
+      if (tipo === atual[2]) { acertos++; som.acerto(); msg.textContent = "Lixeira certa! 🌎"; msg.classList.add("ok"); }
+      else { som.erro(); msg.textContent = `Ops! O certo é: ${NOMES[atual[2]]}.`; msg.classList.add("erro"); }
+      $("explicacao").textContent = atual[3];
+      $("placar").textContent = `Acertos: ${acertos}/${fila.length}`;
+      indice++;
+      setTimeout(proximo, tipo === atual[2] ? 1600 : 2800);
+    }
+
+    function terminar() {
+      $("jogo").classList.add("oculto");
+      const fim = $("fim");
+      fim.classList.remove("oculto");
+      mostrarResultado(fim, { jogo: "reciclagem", acertos, total: fila.length, aoReiniciar: novoJogo });
+    }
+
+    const lix = $("lixeiras");
+    lix.addEventListener("click", e => {
+      const b = e.target.closest("button");
+      if (b) descartar(b.dataset.tipo);
+    });
+    // Arrastar e soltar (computador).
+    $("item").addEventListener("dragstart", e => e.dataTransfer.setData("text/plain", "item"));
+    lix.querySelectorAll("button").forEach(b => {
+      b.addEventListener("dragover", e => { e.preventDefault(); b.classList.add("sobre"); });
+      b.addEventListener("dragleave", () => b.classList.remove("sobre"));
+      b.addEventListener("drop", e => { e.preventDefault(); b.classList.remove("sobre"); descartar(b.dataset.tipo); });
+    });
+
+    novoJogo();
+  </script>
+</body>
+</html>

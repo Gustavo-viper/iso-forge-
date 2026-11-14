@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capitais do Brasil</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .regiao { font-weight: 800; color: #1f9d55; text-transform: uppercase; letter-spacing: .06em; }
+    .curiosidade { margin-top: 10px; color: var(--muted); min-height: 1.4em; }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <a href="../index.html">← Jogos</a>
+    <h1>🗺️ Capitais do Brasil</h1>
+    <span class="placar" id="placar"></span>
+  </header>
+  <main>
+    <section class="cartao centro" id="menu">
+      <h2>Como você quer jogar?</h2>
+      <div class="linha-botoes" id="modos">
+        <button class="btn secundario ativo" data-modo="capital">Estado → Capital</button>
+        <button class="btn secundario" data-modo="estado">Capital → Estado</button>
+      </div>
+      <h2>Região</h2>
+      <div class="linha-botoes" id="regioes">
+        <button class="btn secundario ativo" data-regiao="">Brasil todo</button>
+        <button class="btn secundario" data-regiao="Norte">Norte</button>
+        <button class="btn secundario" data-regiao="Nordeste">Nordeste</button>
+        <button class="btn secundario" data-regiao="Centro-Oeste">Centro-Oeste</button>
+        <button class="btn secundario" data-regiao="Sudeste">Sudeste</button>
+        <button class="btn secundario" data-regiao="Sul">Sul</button>
+      </div>
+      <button class="btn" id="comecar">Começar!</button>
+    </section>
+
+    <section class="cartao centro oculto" id="jogo">
+      <div class="barra"><div id="progresso"></div></div>
+      <div class="regiao" id="regiao"></div>
+      <div class="pergunta" id="pergunta"></div>
+      <div class="opcoes" id="opcoes"></div>
+      <div class="mensagem" id="mensagem"></div>
+    </section>
+
+    <section class="cartao oculto" id="fim"></section>
+  </main>
+
+  <script src="../js/comum.js"></script>
+  <script>
+    const { sortear, embaralhar, som, mostrarResultado } = Jogos;
+    // [estado, sigla, capital, região]
+    const UFS = [
+      ["Acre","AC","Rio Branco","Norte"],["Amapá","AP","Macapá","Norte"],["Amazonas","AM","Manaus","Norte"],
+      ["Pará","PA","Belém","Norte"],["Rondônia","RO","Porto Velho","Norte"],["Roraima","RR","Boa Vista","Norte"],
+      ["Tocantins","TO","Palmas","Norte"],
+      ["Alagoas","AL","Maceió","Nordeste"],["Bahia","BA","Salvador","Nordeste"],["Ceará","CE","Fortaleza","Nordeste"],
+      ["Maranhão","MA","São Luís","Nordeste"],["Paraíba","PB","João Pessoa","Nordeste"],["Pernambuco","PE","Recife","Nordeste"],
+      ["Piauí","PI","Teresina","Nordeste"],["Rio Grande do Norte","RN","Natal","Nordeste"],["Sergipe","SE","Aracaju","Nordeste"],
+      ["Distrito Federal","DF","Brasília","Centro-Oeste"],["Goiás","GO","Goiânia","Centro-Oeste"],
+      ["Mato Grosso","MT","Cuiabá","Centro-Oeste"],["Mato Grosso do Sul","MS","Campo Grande","Centro-Oeste"],
+      ["Espírito Santo","ES","Vitória","Sudeste"],["Minas Gerais","MG","Belo Horizonte","Sudeste"],
+      ["Rio de Janeiro","RJ","Rio de Janeiro","Sudeste"],["São Paulo","SP","São Paulo","Sudeste"],
+      ["Paraná","PR","Curitiba","Sul"],["Rio Grande do Sul","RS","Porto Alegre","Sul"],["Santa Catarina","SC","Florianópolis","Sul"],
+    ];
+    const $ = id => document.getElementById(id);
+    let modo = "capital", regiao = "", perguntas = [], indice = 0, acertos = 0;
+
+    function grupo(el, aoEscolher) {
+      el.addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        el.querySelectorAll("button").forEach(x => x.classList.toggle("ativo", x === b));
+        aoEscolher(b);
+      });
+    }
+    grupo($("modos"), b => modo = b.dataset.modo);
+    grupo($("regioes"), b => regiao = b.dataset.regiao);
+
+    function comecar() {
+      const pool = UFS.filter(u => !regiao || u[3] === regiao);
+      perguntas = sortear(pool, Math.min(10, pool.length));
+      indice = 0; acertos = 0;
+      $("menu").classList.add("oculto");
+      $("fim").classList.add("oculto");
+      $("jogo").classList.remove("oculto");
+      proxima();
+    }
+
+    function proxima() {
+      if (indice >= perguntas.length) return terminar();
+      const uf = perguntas[indice];
+      const pos = modo === "capital" ? 2 : 0;
+      const certa = uf[pos];
+      // Alternativas erradas: de preferência da mesma região, para ficar mais desafiador.
+      const mesmaRegiao = UFS.filter(u => u !== uf && u[3] === uf[3]);
+      const outras = UFS.filter(u => u !== uf && u[3] !== uf[3]);
+      const erradas = [...embaralhar(mesmaRegiao), ...embaralhar(outras)].slice(0, 3).map(u => u[pos]);
+      $("progresso").style.width = `${(indice / perguntas.length) * 100}%`;
+      $("placar").textContent = `Acertos: ${acertos}`;
+      $("regiao").textContent = `Região ${uf[3]}`;
+      $("pergunta").textContent = modo === "capital"
+        ? `Qual é a capital de ${uf[0]} (${uf[1]})?`
+        : `${uf[2]} é capital de qual estado?`;
+      $("mensagem").textContent = "";
+      $("mensagem").className = "mensagem";
+      const box = $("opcoes");
+      box.innerHTML = "";
+      embaralhar([certa, ...erradas]).forEach(v => {
+        const b = document.createElement("button");
+        b.className = "opcao";
+        b.textContent = v;
+        b.addEventListener("click", () => responder(b, v === certa, uf));
+        box.appendChild(b);
+      });
+    }
+
+    function responder(botao, certo, uf) {
+      const certa = modo === "capital" ? uf[2] : uf[0];
+      $("opcoes").querySelectorAll("button").forEach(b => {
+        b.disabled = true;
+        if (b.textContent === certa) b.classList.add("certa");
+      });
+      const msg = $("mensagem");
+      if (certo) { acertos++; som.acerto(); msg.textContent = "Correto! 🎉"; msg.classList.add("ok"); }
+      else { botao.classList.add("errada"); som.erro(); msg.textContent = `A capital de ${uf[0]} é ${uf[2]}.`; msg.classList.add("erro"); }
+      $("placar").textContent = `Acertos: ${acertos}`;
+      indice++;
+      setTimeout(proxima, certo ? 1000 : 2000);
+    }
+
+    function terminar() {
+      $("jogo").classList.add("oculto");
+      const fim = $("fim");
+      fim.classList.remove("oculto");
+      mostrarResultado(fim, {
+        jogo: "capitais", acertos, total: perguntas.length,
+        aoReiniciar: () => { fim.classList.add("oculto"); $("menu").classList.remove("oculto"); },
+      });
+    }
+
+    $("comecar").addEventListener("click", comecar);
+  </script>
+</body>
+</html>
