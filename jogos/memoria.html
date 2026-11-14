@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memória em Inglês</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .tabuleiro {
+      display: grid;
+      grid-template-columns: repeat(var(--colunas, 4), 1fr);
+      gap: 10px;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    .carta {
+      aspect-ratio: 1;
+      perspective: 600px;
+      border: none; padding: 0; background: none; cursor: pointer;
+      font: inherit;
+    }
+    .carta .face {
+      position: relative; width: 100%; height: 100%;
+      transition: transform .35s; transform-style: preserve-3d;
+    }
+    .carta.virada .face, .carta.par .face { transform: rotateY(180deg); }
+    .carta .frente, .carta .verso {
+      position: absolute; inset: 0; border-radius: 14px;
+      display: grid; place-items: center; backface-visibility: hidden;
+      box-shadow: var(--shadow);
+    }
+    .carta .verso { background: linear-gradient(135deg, #1e9bd7, #6c4cf1); color: #fff; font-size: 2rem; }
+    .carta .frente {
+      background: #fff; transform: rotateY(180deg);
+      font-weight: 800; font-size: clamp(.85rem, 3.2vw, 1.25rem); padding: 4px; text-align: center;
+    }
+    .carta .frente.emoji { font-size: clamp(1.8rem, 8vw, 3rem); }
+    .carta.par .frente { background: var(--ok-bg); color: var(--ok); }
+    .info { display: flex; justify-content: center; gap: 24px; font-weight: 800; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <a href="../index.html">← Jogos</a>
+    <h1>🧠 Memória em Inglês</h1>
+    <span class="placar" id="placar"></span>
+  </header>
+  <main>
+    <section class="cartao centro" id="menu">
+      <h2>Escolha o tema</h2>
+      <div class="linha-botoes" id="temas"></div>
+      <h2>Tamanho</h2>
+      <div class="linha-botoes" id="tamanhos">
+        <button class="btn secundario ativo" data-pares="6">6 pares</button>
+        <button class="btn secundario" data-pares="8">8 pares</button>
+        <button class="btn secundario" data-pares="10">10 pares</button>
+      </div>
+      <p class="muted">Vire duas cartas: encontre a figura e a palavra em inglês que combinam.</p>
+      <button class="btn" id="comecar">Começar!</button>
+    </section>
+
+    <section class="cartao oculto" id="jogo">
+      <div class="info"><span id="jogadas"></span><span id="achados"></span></div>
+      <div class="tabuleiro" id="tabuleiro"></div>
+      <div class="mensagem centro" id="mensagem" aria-live="polite"></div>
+    </section>
+
+    <section class="cartao oculto" id="fim"></section>
+  </main>
+
+  <script src="../js/comum.js"></script>
+  <script>
+    const { sortear, embaralhar, som, mostrarResultado } = Jogos;
+    const TEMAS = {
+      "Animais 🐶": [["🐶","dog","cachorro"],["🐱","cat","gato"],["🐦","bird","pássaro"],["🐟","fish","peixe"],["🐴","horse","cavalo"],["🐮","cow","vaca"],["🐷","pig","porco"],["🐭","mouse","rato"],["🦁","lion","leão"],["🐸","frog","sapo"],["🐵","monkey","macaco"],["🐔","chicken","galinha"]],
+      "Comidas 🍎": [["🍎","apple","maçã"],["🍌","banana","banana"],["🍞","bread","pão"],["🧀","cheese","queijo"],["🥚","egg","ovo"],["🥛","milk","leite"],["🍰","cake","bolo"],["🍇","grapes","uvas"],["🥕","carrot","cenoura"],["🍊","orange","laranja"],["🍚","rice","arroz"],["💧","water","água"]],
+      "Objetos ⚽": [["⚽","ball","bola"],["📚","book","livro"],["✏️","pencil","lápis"],["🚗","car","carro"],["🏠","house","casa"],["🪑","chair","cadeira"],["⏰","clock","relógio"],["🔑","key","chave"],["☂️","umbrella","guarda-chuva"],["👟","shoe","tênis"],["🎒","backpack","mochila"],["🚲","bike","bicicleta"]],
+    };
+    const $ = id => document.getElementById(id);
+    let tema = Object.keys(TEMAS)[0], pares = 6;
+    let abertas = [], achados = 0, jogadas = 0, travado = false;
+
+    Object.keys(TEMAS).forEach((t, i) => {
+      const b = document.createElement("button");
+      b.className = "btn secundario" + (i === 0 ? " ativo" : "");
+      b.textContent = t;
+      b.dataset.tema = t;
+      $("temas").appendChild(b);
+    });
+    function grupo(el, aoEscolher) {
+      el.addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        el.querySelectorAll("button").forEach(x => x.classList.toggle("ativo", x === b));
+        aoEscolher(b);
+      });
+    }
+    grupo($("temas"), b => tema = b.dataset.tema);
+    grupo($("tamanhos"), b => pares = Number(b.dataset.pares));
+
+    function comecar() {
+      abertas = []; achados = 0; jogadas = 0; travado = false;
+      $("menu").classList.add("oculto");
+      $("fim").classList.add("oculto");
+      $("jogo").classList.remove("oculto");
+      $("mensagem").textContent = "";
+      const itens = sortear(TEMAS[tema], pares);
+      const cartas = embaralhar(itens.flatMap((it, id) => [
+        { id, texto: it[0], emoji: true, rotulo: it[2] },
+        { id, texto: it[1], emoji: false, rotulo: it[1] },
+      ]));
+      const tab = $("tabuleiro");
+      tab.style.setProperty("--colunas", pares <= 6 ? 4 : 5);
+      tab.innerHTML = "";
+      cartas.forEach(c => {
+        const b = document.createElement("button");
+        b.className = "carta";
+        b.dataset.id = c.id;
+        b.setAttribute("aria-label", "Carta virada");
+        b.innerHTML = `<div class="face"><div class="verso">?</div><div class="frente ${c.emoji ? "emoji" : ""}">${c.texto}</div></div>`;
+        b.addEventListener("click", () => virar(b, c));
+        tab.appendChild(b);
+      });
+      atualizar();
+    }
+
+    function atualizar() {
+      $("jogadas").textContent = `Jogadas: ${jogadas}`;
+      $("achados").textContent = `Pares: ${achados}/${pares}`;
+      $("placar").textContent = tema;
+    }
+
+    function virar(el, carta) {
+      if (travado || el.classList.contains("virada") || el.classList.contains("par")) return;
+      el.classList.add("virada");
+      el.setAttribute("aria-label", carta.texto);
+      abertas.push({ el, carta });
+      if (abertas.length < 2) return;
+      jogadas++;
+      const [a, b] = abertas;
+      if (a.carta.id === b.carta.id) {
+        a.el.classList.add("par"); b.el.classList.add("par");
+        achados++;
+        abertas = [];
+        som.acerto();
+        const ingles = a.carta.emoji ? b.carta.texto : a.carta.texto;
+        const pt = a.carta.emoji ? a.carta.rotulo : b.carta.rotulo;
+        $("mensagem").textContent = `✅ ${ingles} = ${pt}`;
+        $("mensagem").className = "mensagem centro ok";
+        atualizar();
+        if (achados === pares) setTimeout(terminar, 900);
+      } else {
+        travado = true;
+        som.erro();
+        setTimeout(() => {
+          [a, b].forEach(x => { x.el.classList.remove("virada"); x.el.setAttribute("aria-label", "Carta virada"); });
+          abertas = []; travado = false;
+        }, 900);
+        atualizar();
+      }
+    }
+
+    function terminar() {
+      $("jogo").classList.add("oculto");
+      const fim = $("fim");
+      fim.classList.remove("oculto");
+      // Pontuação: jogadas perfeitas = número de pares. Cada jogada extra reduz a nota.
+      const nota = Math.max(0, Math.round(pares * Math.min(1, (pares * 1.5) / jogadas)));
+      mostrarResultado(fim, {
+        jogo: "memoria", acertos: nota, total: pares,
+        titulo: `Você achou tudo em ${jogadas} jogadas!`,
+        aoReiniciar: () => { fim.classList.add("oculto"); $("menu").classList.remove("oculto"); },
+      });
+    }
+
+    $("comecar").addEventListener("click", comecar);
+  </script>
+</body>
+</html>

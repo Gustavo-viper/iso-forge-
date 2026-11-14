@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adivinhe a Palavra</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .vidas { font-size: 1.6rem; letter-spacing: 4px; }
+    .categoria { font-weight: 800; color: #e05297; text-transform: uppercase; letter-spacing: .06em; }
+    .dica { font-size: 1.15rem; margin: 6px 0 18px; }
+    .segredo {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+      margin: 10px 0 24px;
+    }
+    .segredo span {
+      width: 2.2em; height: 2.6em; display: grid; place-items: center;
+      font-size: clamp(1.1rem, 5vw, 1.8rem); font-weight: 800;
+      border-bottom: 4px solid var(--ink); text-transform: uppercase;
+    }
+    .segredo span.espaco { border: none; width: 1em; }
+    .segredo span.revelada { color: var(--bad); }
+    .teclado { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 620px; margin: 0 auto; }
+    .tecla {
+      font: inherit; font-weight: 800; font-size: 1.1rem;
+      width: 2.5em; height: 2.6em; border-radius: 10px; border: none;
+      background: #ece8ff; color: var(--primary-dark); cursor: pointer;
+    }
+    .tecla:hover:not(:disabled) { background: #dcd4ff; }
+    .tecla.certa { background: var(--ok-bg); color: var(--ok); }
+    .tecla.errada { background: var(--bad-bg); color: var(--bad); }
+    .tecla:disabled { cursor: default; }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <a href="../index.html">← Jogos</a>
+    <h1>🔤 Adivinhe a Palavra</h1>
+    <span class="placar" id="placar"></span>
+  </header>
+  <main>
+    <section class="cartao centro" id="jogo">
+      <div class="barra"><div id="progresso"></div></div>
+      <div class="vidas" id="vidas" aria-live="polite"></div>
+      <div class="categoria" id="categoria"></div>
+      <div class="dica" id="dica"></div>
+      <div class="segredo" id="segredo" aria-live="polite"></div>
+      <div class="teclado" id="teclado"></div>
+      <div class="mensagem" id="mensagem"></div>
+      <div class="linha-botoes"><button class="btn oculto" id="seguir">Próxima palavra →</button></div>
+    </section>
+    <section class="cartao oculto" id="fim"></section>
+    <p class="centro muted">Dica: você também pode usar o teclado do computador.</p>
+  </main>
+
+  <script src="../js/comum.js"></script>
+  <script>
+    const { sortear, semAcento, som, mostrarResultado } = Jogos;
+    const RODADAS = 5, VIDAS = 6;
+
+    const BANCO = [
+      ["Animais", "girafa", "Tem o pescoço mais comprido de todos os animais."],
+      ["Animais", "tartaruga", "Anda devagar e carrega a casa nas costas."],
+      ["Animais", "borboleta", "Antes de voar, foi uma lagarta."],
+      ["Animais", "golfinho", "Mamífero marinho muito inteligente que respira pelo alto da cabeça."],
+      ["Animais", "tamanduá", "Usa a língua comprida para comer formigas."],
+      ["Animais", "jacaré", "Réptil de boca enorme que vive nos rios do Pantanal."],
+      ["Frutas", "abacaxi", "Tem uma coroa de folhas e casca cheia de escamas."],
+      ["Frutas", "melancia", "Grande, verde por fora e vermelha por dentro."],
+      ["Frutas", "jabuticaba", "Fruta brasileira que nasce grudada no tronco da árvore."],
+      ["Frutas", "maracujá", "O suco dela ajuda a acalmar."],
+      ["Frutas", "morango", "Vermelho, com sementinhas do lado de fora."],
+      ["Corpo humano", "coração", "Bombeia o sangue para todo o corpo."],
+      ["Corpo humano", "pulmão", "Órgão que usamos para respirar."],
+      ["Corpo humano", "esqueleto", "Conjunto de todos os ossos do corpo."],
+      ["Natureza", "arco-íris", "Aparece no céu com sete cores depois da chuva."],
+      ["Natureza", "vulcão", "Montanha que pode expelir lava."],
+      ["Natureza", "cachoeira", "Água de um rio caindo de um lugar alto."],
+      ["Espaço", "planeta", "A Terra é um deles."],
+      ["Espaço", "astronauta", "Pessoa treinada para viajar ao espaço."],
+      ["Espaço", "estrela", "O Sol é uma delas."],
+      ["Escola", "caderno", "Onde anotamos as lições."],
+      ["Escola", "biblioteca", "Lugar cheio de livros para ler e pesquisar."],
+      ["Escola", "professora", "Ensina os alunos na sala de aula."],
+      ["Profissões", "bombeiro", "Apaga incêndios e salva pessoas."],
+      ["Profissões", "dentista", "Cuida da saúde dos seus dentes."],
+    ];
+
+    const LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZÇ".split("");
+    const $ = id => document.getElementById(id);
+    let palavras, rodada, acertos, palavra, chutes, erros, encerrada;
+
+    // Letra "base" usada para comparar: sem acento, maiúscula. O "ç" continua separado.
+    const base = l => l.toUpperCase() === "Ç" ? "Ç" : semAcento(l).toUpperCase();
+    const ehLetra = l => /[a-zà-üç]/i.test(l);
+
+    function novoJogo() {
+      palavras = sortear(BANCO, RODADAS);
+      rodada = 0; acertos = 0;
+      $("fim").classList.add("oculto");
+      $("jogo").classList.remove("oculto");
+      novaRodada();
+    }
+
+    function novaRodada() {
+      const [cat, p, dica] = palavras[rodada];
+      palavra = p; chutes = new Set(); erros = 0; encerrada = false;
+      $("categoria").textContent = cat;
+      $("dica").textContent = "💡 " + dica;
+      $("mensagem").textContent = "";
+      $("mensagem").className = "mensagem";
+      $("seguir").classList.add("oculto");
+      $("progresso").style.width = `${(rodada / RODADAS) * 100}%`;
+      $("placar").textContent = `Palavra ${rodada + 1}/${RODADAS}`;
+      const t = $("teclado");
+      t.innerHTML = "";
+      LETRAS.forEach(l => {
+        const b = document.createElement("button");
+        b.className = "tecla";
+        b.textContent = l;
+        b.dataset.letra = l;
+        b.addEventListener("click", () => chutar(l));
+        t.appendChild(b);
+      });
+      desenhar();
+    }
+
+    function desenhar(revelar) {
+      $("vidas").textContent = "❤️".repeat(VIDAS - erros) + "🤍".repeat(erros);
+      const s = $("segredo");
+      s.innerHTML = "";
+      [...palavra].forEach(l => {
+        const span = document.createElement("span");
+        if (!ehLetra(l)) { span.textContent = l; span.className = l === " " ? "espaco" : ""; }
+        else if (chutes.has(base(l))) span.textContent = l;
+        else if (revelar) { span.textContent = l; span.className = "revelada"; }
+        s.appendChild(span);
+      });
+    }
+
+    function chutar(letra) {
+      if (encerrada || chutes.has(letra)) return;
+      chutes.add(letra);
+      const tecla = $("teclado").querySelector(`[data-letra="${letra}"]`);
+      tecla.disabled = true;
+      const existe = [...palavra].some(l => ehLetra(l) && base(l) === letra);
+      if (existe) { tecla.classList.add("certa"); som.acerto(); }
+      else { tecla.classList.add("errada"); erros++; som.erro(); }
+      const completa = [...palavra].every(l => !ehLetra(l) || chutes.has(base(l)));
+      if (completa) return encerrar(true);
+      if (erros >= VIDAS) return encerrar(false);
+      desenhar();
+    }
+
+    function encerrar(ganhou) {
+      encerrada = true;
+      desenhar(!ganhou);
+      $("teclado").querySelectorAll("button").forEach(b => b.disabled = true);
+      const msg = $("mensagem");
+      if (ganhou) { acertos++; msg.textContent = "Você acertou! 🎉"; msg.classList.add("ok"); }
+      else { msg.textContent = `A palavra era "${palavra.toUpperCase()}".`; msg.classList.add("erro"); }
+      const ultima = rodada === RODADAS - 1;
+      $("seguir").textContent = ultima ? "Ver resultado" : "Próxima palavra →";
+      $("seguir").classList.remove("oculto");
+      $("seguir").focus();
+    }
+
+    $("seguir").addEventListener("click", () => {
+      rodada++;
+      if (rodada < RODADAS) return novaRodada();
+      $("jogo").classList.add("oculto");
+      const fim = $("fim");
+      fim.classList.remove("oculto");
+      mostrarResultado(fim, { jogo: "palavras", acertos, total: RODADAS, aoReiniciar: novoJogo });
+    });
+
+    document.addEventListener("keydown", e => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+      const l = base(e.key);
+      if (LETRAS.includes(l)) chutar(l);
+    });
+
+    novoJogo();
+  </script>
+</body>
+</html>

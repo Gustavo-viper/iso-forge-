@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forge Jogos Educativos</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>🎓 Forge Jogos Educativos</h1>
+    <span class="placar" id="total-estrelas"></span>
+  </header>
+  <main>
+    <p class="centro muted">Escolha um jogo para aprender brincando. Suas melhores estrelas ficam salvas neste navegador.</p>
+    <div class="grade-jogos" id="grade"></div>
+  </main>
+
+  <script src="js/comum.js"></script>
+  <script>
+    const jogos = [
+      { id: "matematica", icone: "➗", nome: "Desafio da Matemática", materia: "Matemática", cor: "#6c4cf1",
+        desc: "Resolva contas de somar, subtrair, multiplicar e dividir contra o relógio." },
+      { id: "palavras", icone: "🔤", nome: "Adivinhe a Palavra", materia: "Português", cor: "#e05297",
+        desc: "Descubra a palavra secreta letra por letra usando a dica." },
+      { id: "memoria", icone: "🧠", nome: "Memória em Inglês", materia: "Inglês", cor: "#1e9bd7",
+        desc: "Encontre os pares de figura e palavra em inglês." },
+      { id: "capitais", icone: "🗺️", nome: "Capitais do Brasil", materia: "Geografia", cor: "#1f9d55",
+        desc: "Você sabe a capital de cada estado brasileiro?" },
+      { id: "reciclagem", icone: "♻️", nome: "Coleta Seletiva", materia: "Ciências", cor: "#f2a516",
+        desc: "Coloque cada resíduo na lixeira de cor certa." },
+      { id: "horas", icone: "🕒", nome: "Que Horas São?", materia: "Matemática", cor: "#8e5bd8",
+        desc: "Aprenda a ler as horas em um relógio de ponteiros." },
+    ];
+
+    const progresso = Jogos.lerProgresso();
+    const grade = document.getElementById("grade");
+    let total = 0;
+    jogos.forEach(j => {
+      const est = progresso[j.id] || 0;
+      total += est;
+      const a = document.createElement("a");
+      a.className = "jogo-card";
+      a.href = `jogos/${j.id}.html`;
+      a.style.setProperty("--cor", j.cor);
+      a.innerHTML = `
+        <span class="icone" aria-hidden="true">${j.icone}</span>
+        <span class="materia">${j.materia}</span>
+        <h2>${j.nome}</h2>
+        <p>${j.desc}</p>
+        <span class="estrelas" style="color:${j.cor}" aria-label="${est} de 3 estrelas">${Jogos.textoEstrelas(est)}</span>`;
+      grade.appendChild(a);
+    });
+    document.getElementById("total-estrelas").textContent = `★ ${total} / ${jogos.length * 3}`;
+  </script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+:root {
+  --bg: #f4f1ff;
+  --card: #ffffff;
+  --ink: #2b2550;
+  --muted: #6c6890;
+  --primary: #6c4cf1;
+  --primary-dark: #5235d6;
+  --ok: #1f9d55;
+  --ok-bg: #dcf7e7;
+  --bad: #d63d3d;
+  --bad-bg: #fde3e3;
+  --warn: #f2a516;
+  --radius: 18px;
+  --shadow: 0 6px 20px rgba(60, 40, 140, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  line-height: 1.4;
+}
+
+a { color: var(--primary); }
+
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  background: var(--primary);
+  color: #fff;
+}
+.topo h1 { margin: 0; font-size: 1.35rem; }
+.topo a { color: #fff; text-decoration: none; font-weight: 700; }
+.topo .placar { font-weight: 700; white-space: nowrap; }
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.cartao {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.centro { text-align: center; }
+.muted { color: var(--muted); }
+
+/* ---------- Página inicial ---------- */
+.grade-jogos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 18px;
+}
+.jogo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: transform .15s, box-shadow .15s;
+  border-top: 6px solid var(--cor, var(--primary));
+}
+.jogo-card:hover, .jogo-card:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 28px rgba(60, 40, 140, 0.2);
+}
+.jogo-card .icone { font-size: 2.6rem; }
+.jogo-card h2 { margin: 4px 0 0; font-size: 1.2rem; }
+.jogo-card p { margin: 0; color: var(--muted); font-size: .95rem; flex: 1; }
+.jogo-card .materia {
+  align-self: flex-start;
+  font-size: .75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--cor, var(--primary));
+}
+.estrelas { font-size: 1.1rem; letter-spacing: 2px; }
+
+/* ---------- Botões ---------- */
+.btn {
+  font: inherit;
+  font-weight: 800;
+  border: none;
+  border-radius: 14px;
+  padding: 12px 22px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--primary-dark);
+  transition: transform .08s, box-shadow .08s, background .15s;
+}
+.btn:hover { background: var(--primary-dark); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--primary-dark); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.secundario {
+  background: #ece8ff;
+  color: var(--primary-dark);
+  box-shadow: 0 4px 0 #cfc6fb;
+}
+.btn.secundario.ativo { background: var(--primary); color: #fff; box-shadow: 0 4px 0 var(--primary-dark); }
+
+.linha-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+/* ---------- Perguntas de múltipla escolha ---------- */
+.pergunta {
+  font-size: clamp(1.6rem, 6vw, 2.6rem);
+  font-weight: 800;
+  margin: 10px 0 20px;
+}
+.opcoes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.opcao {
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 800;
+  padding: 18px 10px;
+  border-radius: 14px;
+  border: 3px solid #e2ddff;
+  background: #faf9ff;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.opcao:hover:not(:disabled) { border-color: var(--primary); }
+.opcao.certa { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+.opcao.errada { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+.opcao:disabled { cursor: default; }
+
+.barra {
+  height: 12px;
+  background: #e8e4ff;
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 8px 0 16px;
+}
+.barra > div {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #8b6cff, var(--primary));
+  transition: width .3s;
+}
+
+.mensagem {
+  min-height: 1.6em;
+  font-weight: 800;
+  font-size: 1.1rem;
+  margin-top: 14px;
+}
+.mensagem.ok { color: var(--ok); }
+.mensagem.erro { color: var(--bad); }
+
+.resultado .grande-estrela { font-size: 3rem; letter-spacing: 6px; }
+
+.oculto { display: none !important; }
+
+@media (max-width: 480px) {
+  .cartao { padding: 18px; }
+  .opcao { font-size: 1.05rem; padding: 14px 6px; }
+}
